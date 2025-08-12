@@ -86,3 +86,34 @@ pub async fn put_record(
         .await
         .map_err(|e| eyre!("decode pds response failed: {e}"))
 }
+
+pub async fn direct_writes(
+    url: &str,
+    auth: &str,
+    repo: &str,
+    writes: &Value,
+    signing_key: &str,
+    root: &Value,
+) -> Result<Value> {
+    reqwest::Client::new()
+        .post(format!("{url}/xrpc/com.atproto.web5.directWrites"))
+        .bearer_auth(auth)
+        .header("Content-Type", "application/json; charset=utf-8")
+        .timeout(Duration::from_secs(5))
+        .body(
+            json!({
+                "repo": repo,
+                "validate": false,
+                "writes": writes,
+                "signingKey": signing_key,
+                "root": root
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .map_err(|e| eyre!("call pds failed: {e}"))?
+        .json::<Value>()
+        .await
+        .map_err(|e| eyre!("decode pds response failed: {e}"))
+}

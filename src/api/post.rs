@@ -9,14 +9,14 @@ use common_x::restful::{
 };
 use sea_query::{BinOper, Expr, ExprTrait, Func, IntoColumnRef, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use sqlx::{Executor, query_as_with, query_with};
 use validator::Validate;
 
 use crate::{
     AppView,
-    atproto::{NSID_POST, NSID_PROFILE, create_record, get_record},
+    atproto::{NSID_POST, NSID_PROFILE, direct_writes, get_record},
     error::AppError,
     lexicon::{
         post::{Post, PostRow, PostView},
@@ -24,10 +24,18 @@ use crate::{
     },
 };
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Serialize, Deserialize)]
 pub(crate) struct NewPost {
     #[validate(length(min = 1))]
     repo: String,
+    rkey: String,
+    record: PostRecord,
+    signing_key: String,
+    root: Value,
+}
+
+#[derive(Debug, Validate, Serialize, Deserialize)]
+pub(crate) struct PostRecord {
     section_id: u8,
     #[validate(length(max = 60))]
     title: String,
@@ -46,16 +54,18 @@ pub(crate) async fn create(
     let created = chrono::Local::now().naive_local();
     info!("created: {}", created);
 
-    let result = create_record(
+    let result = direct_writes(
         &state.pds,
         auth.token(),
         &post.repo,
-        NSID_POST,
-        &json!({
-            "title": post.title,
-            "text": post.text,
-            "created": created,
-        }),
+        &json!([{
+            "$type": "com.atproto.web5.directWrites#create",
+            "collection": NSID_POST,
+            "rkey": post.rkey,
+            "value": post.record
+        }]),
+        &post.signing_key,
+        &post.root,
     )
     .await?;
 
@@ -85,9 +95,9 @@ pub(crate) async fn create(
             uri.into(),
             cid.into(),
             post.repo.into(),
-            post.section_id.into(),
-            post.title.into(),
-            post.text.into(),
+            post.record.section_id.into(),
+            post.record.title.into(),
+            post.record.text.into(),
         ])?
         .returning_col(Post::Uri)
         .build_sqlx(PostgresQueryBuilder);
