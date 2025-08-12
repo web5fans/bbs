@@ -234,10 +234,11 @@ pub(crate) async fn list(
     Ok(ok(result))
 }
 
+#[allow(dead_code)]
 pub(crate) async fn detail(
-    State(state): State<AppView>,
-    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
-    Json(post): Json<NewPost>,
+    State(_state): State<AppView>,
+    TypedHeader(_auth): TypedHeader<Authorization<Bearer>>,
+    Json(_post): Json<NewPost>,
 ) -> Result<impl IntoResponse, AppError> {
     Ok(ok_simple())
 }

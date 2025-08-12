@@ -2,7 +2,6 @@ mod api;
 mod atproto;
 mod error;
 mod lexicon;
-mod test;
 
 #[macro_use]
 extern crate tracing as logger;

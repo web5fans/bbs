@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 pub const NSID_POST: &str = "app.bbs.post";
 pub const NSID_PROFILE: &str = "app.actor.profile";
 
+#[allow(dead_code)]
 pub async fn create_record(
     url: &str,
     auth: &str,
@@ -56,6 +57,7 @@ pub async fn get_record(
         .map_err(|e| eyre!("decode pds response failed: {e}"))
 }
 
+#[allow(dead_code)]
 pub async fn put_record(
     url: &str,
     auth: &str,
