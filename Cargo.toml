@@ -1,0 +1,61 @@
+[package]
+name = "bbs"
+version = "0.1.0"
+edition = "2024"
+authors = ["JLer <jlerxky@live.com>"]
+
+[dependencies]
+atrium-api = "0.25"
+
+axum-extra = { version = "0.10", features = ["typed-header"] }
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+color-eyre = "0.6"
+common_x = { version = "0.8", default-features = false, features = [
+    "log",
+    "restful",
+] }
+reqwest = { version = "0.12", features = ["json"] }
+sea-query = "1.0.0-rc.8"
+sea-query-sqlx = { version = "0.8.0-rc.8", features = [
+    "sqlx-postgres",
+    "with-chrono",
+    "with-json",
+    "with-rust_decimal",
+    "with-uuid",
+] }
+serde = "1.0"
+serde_json = "1.0"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }
+tracing = "0.1"
+validator = { version = "0.20", features = ["derive"] }
+
+[lints.clippy]
+missing_const_for_fn = "warn"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+unused_crate_dependencies = "warn"
+unused_extern_crates = "warn"
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[profile.fast]
+inherits = "release"
+opt-level = 3
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+
+[profile.release]
+debug = false
+lto = "fat"
+opt-level = 3
+codegen-units = 1
