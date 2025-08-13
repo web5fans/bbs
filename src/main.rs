@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     common_x::log::init_log_filter(&args.log_filter);
-    info!("arguments: {:?}", args);
+    info!("args: {:?}", args);
     let db = PgPoolOptions::new()
         .max_connections(5)
         .connect(&args.db_url)
@@ -62,8 +62,9 @@ async fn main() -> Result<()> {
     // api
     let router = Router::new()
         .route("/api/section/list", get(api::section::list))
-        .route("/api/post/create", post(api::post::create))
+        .route("/api/record/create", post(api::record::create))
         .route("/api/post/list", post(api::post::list))
+        .route("/api/post/detail", get(api::post::detail))
         .layer(CorsLayer::new().allow_methods([
             Method::GET,
             Method::POST,

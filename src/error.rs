@@ -7,6 +7,7 @@ use common_x::restful::axum::{
 use serde_json::json;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub(crate) enum AppError {
     Validate(String),
     Unknown(String),

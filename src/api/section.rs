@@ -1,7 +1,3 @@
-use axum_extra::{
-    TypedHeader,
-    headers::{Authorization, authorization::Bearer},
-};
 use color_eyre::eyre::eyre;
 use common_x::restful::{
     axum::{extract::State, response::IntoResponse},
@@ -17,10 +13,7 @@ use crate::{
     lexicon::section::{Section, SectionRow},
 };
 
-pub(crate) async fn list(
-    State(state): State<AppView>,
-    TypedHeader(_auth): TypedHeader<Authorization<Bearer>>,
-) -> Result<impl IntoResponse, AppError> {
+pub(crate) async fn list(State(state): State<AppView>) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
         .columns([
             Section::Id,

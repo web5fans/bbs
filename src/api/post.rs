@@ -1,22 +1,22 @@
-use axum_extra::{
-    TypedHeader,
-    headers::{Authorization, authorization::Bearer},
-};
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::eyre::eyre;
 use common_x::restful::{
-    axum::{Json, extract::State, response::IntoResponse},
-    ok, ok_simple,
+    axum::{
+        Json,
+        extract::{Query, State},
+        response::IntoResponse,
+    },
+    ok,
 };
 use sea_query::{BinOper, Expr, ExprTrait, Func, IntoColumnRef, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::{Executor, query_as_with, query_with};
+use sqlx::query_as_with;
 use validator::Validate;
 
 use crate::{
     AppView,
-    atproto::{NSID_POST, NSID_PROFILE, direct_writes, get_record},
+    atproto::{NSID_PROFILE, get_record},
     error::AppError,
     lexicon::{
         post::{Post, PostRow, PostView},
@@ -24,94 +24,13 @@ use crate::{
     },
 };
 
-#[derive(Debug, Validate, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NewPost {
-    #[validate(length(min = 1))]
     repo: String,
     rkey: String,
-    record: PostRecord,
+    record: Value,
     signing_key: String,
     root: Value,
-}
-
-#[derive(Debug, Validate, Serialize, Deserialize)]
-pub(crate) struct PostRecord {
-    section_id: u8,
-    #[validate(length(max = 60))]
-    title: String,
-    #[validate(length(max = 10000))]
-    text: String,
-}
-
-pub(crate) async fn create(
-    State(state): State<AppView>,
-    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
-    Json(post): Json<NewPost>,
-) -> Result<impl IntoResponse, AppError> {
-    post.validate()
-        .map_err(|e| AppError::Validate(e.to_string()))?;
-
-    let created = chrono::Local::now().naive_local();
-    info!("created: {}", created);
-
-    let result = direct_writes(
-        &state.pds,
-        auth.token(),
-        &post.repo,
-        &json!([{
-            "$type": "com.atproto.web5.directWrites#create",
-            "collection": NSID_POST,
-            "rkey": post.rkey,
-            "value": post.record
-        }]),
-        &post.signing_key,
-        &post.root,
-    )
-    .await?;
-
-    info!("pds: {}", result);
-
-    let uri = result
-        .get("uri")
-        .and_then(|uri| uri.as_str())
-        .ok_or_eyre("create_record error: no uri")?;
-
-    let cid = result
-        .get("cid")
-        .and_then(|cid| cid.as_str())
-        .ok_or_eyre("create_record error: no cid")?;
-
-    let (sql, values) = sea_query::Query::insert()
-        .into_table(Post::Table)
-        .columns([
-            Post::Uri,
-            Post::Cid,
-            Post::Repo,
-            Post::SectionId,
-            Post::Title,
-            Post::Text,
-        ])
-        .values([
-            uri.into(),
-            cid.into(),
-            post.repo.into(),
-            post.record.section_id.into(),
-            post.record.title.into(),
-            post.record.text.into(),
-        ])?
-        .returning_col(Post::Uri)
-        .build_sqlx(PostgresQueryBuilder);
-
-    debug!("write_posts exec sql: {sql}");
-
-    // execute the SQL query
-    state
-        .db
-        .execute(query_with(&sql, values))
-        .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
-
-    Ok(ok_simple())
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -146,7 +65,6 @@ impl sea_query::Iden for ToTimestamp {
 
 pub(crate) async fn list(
     State(state): State<AppView>,
-    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(query): Json<PostQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
@@ -193,7 +111,7 @@ pub(crate) async fn list(
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    info!("sql: {sql}");
+    debug!("sql: {sql}");
 
     let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
         .fetch_all(&state.db)
@@ -202,7 +120,7 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let identity_row = get_record(&state.pds, auth.token(), &row.repo, NSID_PROFILE, "self")
+        let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .unwrap_or(json!({}));
         views.push(PostView {
@@ -234,11 +152,53 @@ pub(crate) async fn list(
     Ok(ok(result))
 }
 
-#[allow(dead_code)]
 pub(crate) async fn detail(
-    State(_state): State<AppView>,
-    TypedHeader(_auth): TypedHeader<Authorization<Bearer>>,
-    Json(_post): Json<NewPost>,
+    State(state): State<AppView>,
+    Query(uri): Query<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    Ok(ok_simple())
+    let (sql, values) = sea_query::Query::select()
+        .columns([
+            (Post::Table, Post::Uri),
+            (Post::Table, Post::Cid),
+            (Post::Table, Post::Repo),
+            (Post::Table, Post::Title),
+            (Post::Table, Post::Text),
+            (Post::Table, Post::VisitedCount),
+            (Post::Table, Post::Visited),
+            (Post::Table, Post::Updated),
+            (Post::Table, Post::Created),
+        ])
+        .column((Section::Table, Section::Name))
+        .from(Post::Table)
+        .left_join(
+            Section::Table,
+            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
+        )
+        .and_where(Expr::col(Post::Uri).eq(uri))
+        .build_sqlx(PostgresQueryBuilder);
+
+    debug!("sql: {sql}");
+
+    let row: PostRow = query_as_with::<_, PostRow, _>(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        .await
+        .unwrap_or(json!({}));
+    let view = PostView {
+        uri: row.uri,
+        cid: row.cid,
+        actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+        title: row.title,
+        text: row.text,
+        visited_count: row.visited_count,
+        visited: row.visited,
+        updated: row.updated,
+        created: row.created,
+        section: row.section,
+    };
+
+    Ok(ok(view))
 }

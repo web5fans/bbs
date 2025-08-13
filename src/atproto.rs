@@ -38,14 +38,12 @@ pub async fn create_record(
 
 pub async fn get_record(
     url: &str,
-    auth: &str,
     repo: &str,
     nsid: &str,
     rkey: &str,
 ) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/xrpc/com.atproto.repo.getRecord"))
-        .bearer_auth(auth)
         .query(&[("repo", repo), ("collection", nsid), ("rkey", rkey)])
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
