@@ -10,22 +10,17 @@ use sqlx::query_as_with;
 use crate::{
     AppView,
     error::AppError,
-    lexicon::section::{Section, SectionRow},
+    lexicon::section::{Section, SectionRowSample},
 };
 
 pub(crate) async fn list(State(state): State<AppView>) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
-        .columns([
-            Section::Id,
-            Section::Name,
-            Section::Updated,
-            Section::Created,
-        ])
+        .columns([Section::Id, Section::Name])
         .from(Section::Table)
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<SectionRow> = query_as_with::<_, SectionRow, _>(&sql, values.clone())
+    let rows: Vec<SectionRowSample> = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;

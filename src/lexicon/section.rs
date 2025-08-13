@@ -59,9 +59,16 @@ impl Section {
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
+#[allow(dead_code)]
 pub struct SectionRow {
     id: i32,
     name: String,
     updated: NaiveDateTime,
     created: NaiveDateTime,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct SectionRowSample {
+    id: i32,
+    name: String,
 }
