@@ -8,7 +8,6 @@ extern crate tracing as logger;
 
 use std::time::Duration;
 
-use atrium_api::xrpc::http::Method;
 use clap::Parser;
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::axum::routing::get;
@@ -65,13 +64,8 @@ async fn main() -> Result<()> {
         .route("/api/record/create", post(api::record::create))
         .route("/api/post/list", post(api::post::list))
         .route("/api/post/detail", get(api::post::detail))
-        .layer(CorsLayer::new().allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::DELETE,
-            Method::PUT,
-        ]))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
+        .layer(CorsLayer::permissive())
         .with_state(bbs);
     common_x::restful::http_serve(8080, router)
         .await

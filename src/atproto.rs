@@ -36,12 +36,7 @@ pub async fn create_record(
         .map_err(|e| eyre!("decode pds response failed: {e}"))
 }
 
-pub async fn get_record(
-    url: &str,
-    repo: &str,
-    nsid: &str,
-    rkey: &str,
-) -> Result<Value> {
+pub async fn get_record(url: &str, repo: &str, nsid: &str, rkey: &str) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/xrpc/com.atproto.repo.getRecord"))
         .query(&[("repo", repo), ("collection", nsid), ("rkey", rkey)])
