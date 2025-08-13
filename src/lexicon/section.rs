@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use color_eyre::Result;
-use sea_query::{ColumnDef, Expr, Iden, OnConflict, PostgresQueryBuilder};
+use sea_query::{ColumnDef, ColumnType, Expr, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
@@ -9,7 +9,9 @@ use sqlx::{Executor, Pool, Postgres, query, query_with};
 pub enum Section {
     Table,
     Id,
+    Permission,
     Name,
+    Administrators,
     Updated,
     Created,
 }
@@ -26,7 +28,14 @@ impl Section {
                     .auto_increment()
                     .primary_key(),
             )
+            .col(
+                ColumnDef::new(Self::Permission)
+                    .integer()
+                    .not_null()
+                    .default(0),
+            )
             .col(ColumnDef::new(Self::Name).string().not_null())
+            .col(ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())))
             .col(
                 ColumnDef::new(Self::Updated)
                     .date_time()
@@ -44,9 +53,10 @@ impl Section {
 
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
-            .columns([Self::Id, Self::Name])
-            .values_panic([0.into(), "Web5技术讨论".into()])
-            .values_panic([1.into(), "CKB RFC".into()])
+            .columns([Self::Id, Self::Name, Self::Permission])
+            .values_panic([0.into(), "公告".into(), 1.into()])
+            .values_panic([1.into(), "Web5技术讨论".into(), 0.into()])
+            .values_panic([2.into(), "CKB RFC".into(), 0.into()])
             .on_conflict(
                 OnConflict::column(Self::Id)
                     .update_columns([Self::Name])
@@ -63,6 +73,8 @@ impl Section {
 pub struct SectionRow {
     id: i32,
     name: String,
+    permission: i32,
+    administrators: Vec<String>,
     updated: NaiveDateTime,
     created: NaiveDateTime,
 }
@@ -71,4 +83,5 @@ pub struct SectionRow {
 pub struct SectionRowSample {
     id: i32,
     name: String,
+    administrators: Vec<String>,
 }
