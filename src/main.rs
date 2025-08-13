@@ -63,6 +63,7 @@ async fn main() -> Result<()> {
         .route("/api/section/list", get(api::section::list))
         .route("/api/record/create", post(api::record::create))
         .route("/api/post/list", post(api::post::list))
+        .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())

@@ -152,6 +152,94 @@ pub(crate) async fn list(
     Ok(ok(result))
 }
 
+#[derive(Debug, Default, Validate, Deserialize)]
+#[serde(default)]
+pub(crate) struct TopQuery {
+    pub section_id: i32,
+}
+
+pub(crate) async fn top(
+    State(state): State<AppView>,
+    Json(query): Json<TopQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let (sql, values) = sea_query::Query::select()
+        .columns([Section::Id, Section::Administrators])
+        .from(Section::Table)
+        .and_where(Expr::col((Section::Table, Section::Id)).eq(query.section_id))
+        .build_sqlx(PostgresQueryBuilder);
+    let section: (i32, Option<Vec<String>>) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let administrators = if let Some(administrators) = section.1 {
+        administrators
+    } else {
+        return Ok(ok(json!({
+            "posts": []
+        })));
+    };
+
+    if administrators.is_empty() {
+        return Ok(ok(json!({
+            "posts": []
+        })));
+    };
+
+    let (sql, values) = sea_query::Query::select()
+        .columns([
+            (Post::Table, Post::Uri),
+            (Post::Table, Post::Cid),
+            (Post::Table, Post::Repo),
+            (Post::Table, Post::Title),
+            (Post::Table, Post::Text),
+            (Post::Table, Post::VisitedCount),
+            (Post::Table, Post::Visited),
+            (Post::Table, Post::Updated),
+            (Post::Table, Post::Created),
+        ])
+        .column((Section::Table, Section::Name))
+        .from(Post::Table)
+        .left_join(
+            Section::Table,
+            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
+        )
+        .and_where(Expr::col((Post::Table, Post::SectionId)).eq(query.section_id))
+        .and_where(Expr::col((Post::Table, Post::Repo)).is_in(administrators))
+        .order_by(Post::Created, Order::Desc)
+        .limit(10)
+        .build_sqlx(PostgresQueryBuilder);
+
+    debug!("sql: {sql}");
+
+    let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let mut views = vec![];
+    for row in rows {
+        let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+            .await
+            .unwrap_or(json!({}));
+        views.push(PostView {
+            uri: row.uri,
+            cid: row.cid,
+            actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+            title: row.title,
+            text: row.text,
+            visited_count: row.visited_count,
+            visited: row.visited,
+            updated: row.updated,
+            created: row.created,
+            section: row.section,
+        });
+    }
+    Ok(ok(json!({
+        "posts": views
+    })))
+}
+
 pub(crate) async fn detail(
     State(state): State<AppView>,
     Query(query): Query<Value>,
