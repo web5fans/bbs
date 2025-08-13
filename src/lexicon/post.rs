@@ -62,6 +62,36 @@ impl Post {
             )
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(ColumnDef::new(Self::Uri).string().not_null().primary_key())
+            .add_column_if_not_exists(ColumnDef::new(Self::Cid).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Repo).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::SectionId).integer().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Title).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Text).string().not_null())
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::VisitedCount)
+                    .integer()
+                    .not_null()
+                    .default(0),
+            )
+            .add_column_if_not_exists(ColumnDef::new(Self::Visited).date_time())
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Updated)
+                    .date_time()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Created)
+                    .date_time()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
         Ok(())
     }
 }

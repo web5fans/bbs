@@ -51,6 +51,40 @@ impl Section {
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
 
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Id)
+                    .integer()
+                    .not_null()
+                    .auto_increment()
+                    .primary_key(),
+            )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Permission)
+                    .integer()
+                    .not_null()
+                    .default(0),
+            )
+            .add_column_if_not_exists(ColumnDef::new(Self::Name).string().not_null())
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())),
+            )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Updated)
+                    .date_time()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::Created)
+                    .date_time()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([Self::Id, Self::Name, Self::Permission])
