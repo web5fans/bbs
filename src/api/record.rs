@@ -5,7 +5,7 @@ use axum_extra::{
 use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
-    ok_simple,
+    ok,
 };
 use sea_query::PostgresQueryBuilder;
 use sea_query_sqlx::SqlxBinder;
@@ -71,7 +71,7 @@ pub(crate) async fn create(
         }
     }
 
-    Ok(ok_simple())
+    Ok(ok(result))
 }
 
 async fn insert_post(
