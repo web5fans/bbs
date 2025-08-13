@@ -68,7 +68,9 @@ impl Section {
             )
             .add_column_if_not_exists(ColumnDef::new(Self::Name).string().not_null())
             .add_column_if_not_exists(
-                ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())),
+                ColumnDef::new(Self::Administrators)
+                    .array(ColumnType::String(Default::default()))
+                    .default(vec![]),
             )
             .add_column_if_not_exists(
                 ColumnDef::new(Self::Updated)
@@ -93,7 +95,7 @@ impl Section {
             .values_panic([2.into(), "CKB RFC".into(), 0.into()])
             .on_conflict(
                 OnConflict::column(Self::Id)
-                    .update_columns([Self::Name])
+                    .update_columns([Self::Name, Self::Permission])
                     .to_owned(),
             )
             .build_sqlx(PostgresQueryBuilder);
@@ -108,7 +110,7 @@ pub struct SectionRow {
     id: i32,
     name: String,
     permission: i32,
-    administrators: Vec<String>,
+    administrators: Option<Vec<String>>,
     updated: NaiveDateTime,
     created: NaiveDateTime,
 }
@@ -117,5 +119,5 @@ pub struct SectionRow {
 pub struct SectionRowSample {
     id: i32,
     name: String,
-    administrators: Vec<String>,
+    administrators: Option<Vec<String>>,
 }

@@ -1,4 +1,4 @@
-use color_eyre::eyre::eyre;
+use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{
         Json,
@@ -154,8 +154,13 @@ pub(crate) async fn list(
 
 pub(crate) async fn detail(
     State(state): State<AppView>,
-    Query(uri): Query<String>,
+    Query(query): Query<Value>,
 ) -> Result<impl IntoResponse, AppError> {
+    let uri = query
+        .get("uri")
+        .and_then(|u| u.as_str())
+        .ok_or_eyre("uri not be null")?;
+
     let (sql, values) = sea_query::Query::select()
         .columns([
             (Post::Table, Post::Uri),

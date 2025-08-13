@@ -8,6 +8,7 @@ use common_x::restful::{
 };
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder, extension::postgres::PgExpr};
 use sea_query_sqlx::SqlxBinder;
+use serde_json::Value;
 use sqlx::query_as_with;
 
 use crate::{
@@ -18,18 +19,20 @@ use crate::{
 
 pub(crate) async fn list(
     State(state): State<AppView>,
-    Query(repo): Query<Option<String>>,
+    Query(query): Query<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
         .columns([Section::Id, Section::Name, Section::Administrators])
         .from(Section::Table)
-        .and_where(if let Some(repo) = repo {
-            Expr::col((Section::Table, Section::Permission))
-                .eq(0)
-                .or(Expr::col((Section::Table, Section::Administrators)).contains(repo))
-        } else {
-            Expr::col((Section::Table, Section::Permission)).eq(0)
-        })
+        .and_where(
+            if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
+                Expr::col((Section::Table, Section::Permission))
+                    .eq(0)
+                    .or(Expr::col((Section::Table, Section::Administrators)).contains(repo))
+            } else {
+                Expr::col((Section::Table, Section::Permission)).eq(0)
+            },
+        )
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
