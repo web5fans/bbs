@@ -49,7 +49,43 @@ pub(crate) async fn list(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
-    Ok(ok(rows))
+    let mut views = vec![];
+    for row in rows {
+        let owner_author = if let Some(owner) = row.owner {
+            get_record(&state.pds, &owner, NSID_PROFILE, "self")
+                .await
+                .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+                .unwrap_or(json!({
+                    "did": owner
+                }))
+        } else {
+            json!({})
+        };
+
+        let mut administrators = vec![];
+
+        if let Some(admins) = row.administrators {
+            for admin in admins {
+                administrators.push(
+                    get_record(&state.pds, &admin, NSID_PROFILE, "self")
+                        .await
+                        .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+                        .unwrap_or(json!({
+                            "did": admin
+                        })),
+                );
+            }
+        }
+        views.push(SectionView {
+            id: row.id.to_string(),
+            name: row.name,
+            description: row.description,
+            owner: owner_author,
+            administrators: Value::Array(administrators),
+        });
+    }
+
+    Ok(ok(views))
 }
 
 pub(crate) async fn detail(

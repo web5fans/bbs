@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use color_eyre::Result;
+use color_eyre::{Result, eyre::OptionExt};
 use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -101,6 +101,15 @@ impl Post {
         uri: &str,
         cid: &str,
     ) -> Result<()> {
+        let section_id = post["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
+
+        let created = post["created"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+            .ok_or_eyre("error in created")?;
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
@@ -116,10 +125,10 @@ impl Post {
                 uri.into(),
                 cid.into(),
                 repo.into(),
-                post["section_id"].clone().into(),
+                section_id.into(),
                 post["title"].clone().into(),
                 post["text"].clone().into(),
-                post["created"].clone().into(),
+                created.into(),
             ])?
             .returning_col(Self::Uri)
             .build_sqlx(PostgresQueryBuilder);

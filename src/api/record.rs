@@ -49,12 +49,12 @@ pub(crate) async fn create(
     debug!("pds: {}", result);
 
     let uri = result
-        .get("uri")
+        .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
         .ok_or_eyre("create_record error: no uri")?;
 
     let cid = result
-        .get("cid")
+        .pointer("/results/0/cid")
         .and_then(|cid| cid.as_str())
         .ok_or_eyre("create_record error: no cid")?;
 
