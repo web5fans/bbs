@@ -1,29 +1,25 @@
 use chrono::NaiveDateTime;
 use color_eyre::Result;
-use sea_query::{ColumnDef, Expr, ForeignKey, ForeignKeyAction, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
-use crate::lexicon::section::Section;
-
 #[derive(Iden)]
-pub enum Post {
+pub enum Reply {
     Table,
     Uri,
     Cid,
     Repo,
-    SectionId,
-    Title,
+    Root,
+    Parent,
     Text,
-    VisitedCount,
-    Visited,
     Updated,
     Created,
 }
 
-impl Post {
+impl Reply {
     pub async fn init(db: &Pool<Postgres>) -> Result<()> {
         let sql = sea_query::Table::create()
             .table(Self::Table)
@@ -31,16 +27,9 @@ impl Post {
             .col(ColumnDef::new(Self::Uri).string().not_null().primary_key())
             .col(ColumnDef::new(Self::Cid).string().not_null())
             .col(ColumnDef::new(Self::Repo).string().not_null())
-            .col(ColumnDef::new(Self::SectionId).integer().not_null())
-            .col(ColumnDef::new(Self::Title).string().not_null())
+            .col(ColumnDef::new(Self::Root).string().not_null())
+            .col(ColumnDef::new(Self::Parent).string().not_null())
             .col(ColumnDef::new(Self::Text).string().not_null())
-            .col(
-                ColumnDef::new(Self::VisitedCount)
-                    .integer()
-                    .not_null()
-                    .default(0),
-            )
-            .col(ColumnDef::new(Self::Visited).date_time())
             .col(
                 ColumnDef::new(Self::Updated)
                     .date_time()
@@ -53,14 +42,6 @@ impl Post {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
-            .foreign_key(
-                ForeignKey::create()
-                    .name("section_fk")
-                    .from(Self::Table, Self::SectionId)
-                    .to(Section::Table, Section::Id)
-                    .on_delete(ForeignKeyAction::Cascade)
-                    .on_update(ForeignKeyAction::Cascade),
-            )
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
 
@@ -69,16 +50,9 @@ impl Post {
             .add_column_if_not_exists(ColumnDef::new(Self::Uri).string().not_null().primary_key())
             .add_column_if_not_exists(ColumnDef::new(Self::Cid).string().not_null())
             .add_column_if_not_exists(ColumnDef::new(Self::Repo).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::SectionId).integer().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Title).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Root).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Parent).string().not_null())
             .add_column_if_not_exists(ColumnDef::new(Self::Text).string().not_null())
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::VisitedCount)
-                    .integer()
-                    .not_null()
-                    .default(0),
-            )
-            .add_column_if_not_exists(ColumnDef::new(Self::Visited).date_time())
             .add_column_if_not_exists(
                 ColumnDef::new(Self::Updated)
                     .date_time()
@@ -99,7 +73,7 @@ impl Post {
     pub async fn insert(
         db: &Pool<Postgres>,
         repo: &str,
-        post: &Value,
+        reply: &Value,
         uri: &str,
         cid: &str,
     ) -> Result<()> {
@@ -109,8 +83,8 @@ impl Post {
                 Self::Uri,
                 Self::Cid,
                 Self::Repo,
-                Self::SectionId,
-                Self::Title,
+                Self::Root,
+                Self::Parent,
                 Self::Text,
                 Self::Created,
             ])
@@ -118,10 +92,10 @@ impl Post {
                 uri.into(),
                 cid.into(),
                 repo.into(),
-                post["section_id"].clone().into(),
-                post["title"].clone().into(),
-                post["text"].clone().into(),
-                post["created"].clone().into(),
+                reply["root"].clone().into(),
+                reply["parent"].clone().into(),
+                reply["text"].clone().into(),
+                reply["created"].clone().into(),
             ])?
             .returning_col(Self::Uri)
             .build_sqlx(PostgresQueryBuilder);
@@ -134,14 +108,13 @@ impl Post {
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
 #[allow(dead_code)]
-pub struct PostRow {
+pub struct ReplyRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
-    pub title: String,
+    pub root: String,
+    pub parent: String,
     pub text: String,
-    pub visited_count: i32,
-    pub visited: Option<NaiveDateTime>,
     pub updated: NaiveDateTime,
     pub created: NaiveDateTime,
     #[sqlx(rename = "name")]
@@ -150,15 +123,13 @@ pub struct PostRow {
 
 #[derive(Debug, Serialize)]
 #[allow(dead_code)]
-pub struct PostView {
+pub struct ReplyView {
     pub uri: String,
     pub cid: String,
     pub actior: Value,
-    pub title: String,
+    pub root: String,
+    pub parent: String,
     pub text: String,
-    pub visited_count: i32,
-    pub visited: Option<NaiveDateTime>,
     pub updated: NaiveDateTime,
     pub created: NaiveDateTime,
-    pub section: String,
 }

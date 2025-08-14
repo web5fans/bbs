@@ -17,6 +17,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 
 use crate::lexicon::post::Post;
+use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
 
@@ -52,6 +53,7 @@ async fn main() -> Result<()> {
     Status::init(&db).await?;
     Section::init(&db).await?;
     Post::init(&db).await?;
+    Reply::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -65,6 +67,7 @@ async fn main() -> Result<()> {
         .route("/api/post/list", post(api::post::list))
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
+        .route("/api/reply/list", post(api::reply::list))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);

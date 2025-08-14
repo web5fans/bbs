@@ -1,4 +1,4 @@
-FROM rust:slim-bullseye AS buildstage
+FROM m.daocloud.io/docker.io/rust:slim-bullseye AS buildstage
 WORKDIR /build
 ENV PROTOC_NO_VENDOR 1
 RUN rustup component add rustfmt && \
@@ -9,7 +9,7 @@ RUN rustup component add rustfmt && \
 COPY . /build/
 RUN cargo build --release
 
-FROM rust:slim-bullseye
+FROM m.daocloud.io/docker.io/rust:slim-bullseye
 RUN useradd -m bbs
 USER bbs
 COPY --from=buildstage /build/target/release/bbs /usr/bin/

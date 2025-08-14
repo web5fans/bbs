@@ -10,6 +10,7 @@ use serde_json::json;
 #[allow(dead_code)]
 pub(crate) enum AppError {
     Validate(String),
+    NotFound,
     Unknown(String),
 }
 
@@ -17,6 +18,10 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             AppError::Validate(msg) => (StatusCode::BAD_REQUEST, string_to_static_str(msg)),
+            AppError::NotFound => (
+                StatusCode::NOT_FOUND,
+                string_to_static_str("NOT_FOUND".to_owned()),
+            ),
             AppError::Unknown(msg) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, string_to_static_str(msg))
             }

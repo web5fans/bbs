@@ -275,7 +275,7 @@ pub(crate) async fn detail(
     let row: PostRow = query_as_with::<_, PostRow, _>(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+        .map_err(|_| AppError::NotFound)?;
 
     let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
         .await
