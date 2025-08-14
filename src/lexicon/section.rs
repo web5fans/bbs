@@ -3,6 +3,7 @@ use color_eyre::Result;
 use sea_query::{ColumnDef, ColumnType, Expr, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
+use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
 #[derive(Iden)]
@@ -125,9 +126,18 @@ pub struct SectionRow {
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
 pub struct SectionRowSample {
-    id: i32,
-    name: String,
-    description: Option<String>,
-    owner: Option<String>,
-    administrators: Option<Vec<String>>,
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub owner: Option<String>,
+    pub administrators: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SectionView {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub owner: Value,
+    pub administrators: Value,
 }

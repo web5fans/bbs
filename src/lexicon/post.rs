@@ -1,12 +1,10 @@
 use chrono::NaiveDateTime;
 use color_eyre::Result;
-use sea_query::{ColumnDef, Expr, ForeignKey, ForeignKeyAction, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
-
-use crate::lexicon::section::Section;
 
 #[derive(Iden)]
 pub enum Post {
@@ -53,14 +51,14 @@ impl Post {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
-            .foreign_key(
-                ForeignKey::create()
-                    .name("section_fk")
-                    .from(Self::Table, Self::SectionId)
-                    .to(Section::Table, Section::Id)
-                    .on_delete(ForeignKeyAction::Cascade)
-                    .on_update(ForeignKeyAction::Cascade),
-            )
+            // .foreign_key(
+            //     ForeignKey::create()
+            //         .name("section_fk")
+            //         .from(Self::Table, Self::SectionId)
+            //         .to(Section::Table, Section::Id)
+            //         .on_delete(ForeignKeyAction::Cascade)
+            //         .on_update(ForeignKeyAction::Cascade),
+            // )
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
 
@@ -149,14 +147,13 @@ pub struct PostRow {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)]
 pub struct PostView {
     pub uri: String,
     pub cid: String,
-    pub actior: Value,
+    pub author: Value,
     pub title: String,
     pub text: String,
-    pub visited_count: i32,
+    pub visited_count: String,
     pub visited: Option<NaiveDateTime>,
     pub updated: NaiveDateTime,
     pub created: NaiveDateTime,

@@ -36,9 +36,9 @@ pub(crate) struct NewPost {
 #[derive(Debug, Validate, Deserialize)]
 #[serde(default)]
 pub(crate) struct PostQuery {
-    pub section_id: Option<i32>,
+    pub section_id: Option<String>,
     pub cursor: Option<String>,
-    pub limit: u64,
+    pub limit: String,
     pub q: Option<String>,
     pub repo: Option<String>,
 }
@@ -48,7 +48,7 @@ impl Default for PostQuery {
         Self {
             section_id: Default::default(),
             cursor: Default::default(),
-            limit: 15,
+            limit: "20".to_string(),
             q: Default::default(),
             repo: Default::default(),
         }
@@ -98,6 +98,7 @@ pub(crate) async fn list(
         .and_where_option(
             query
                 .section_id
+                .and_then(|id| id.parse::<i32>().ok())
                 .map(|section| Expr::col((Post::Table, Post::SectionId)).eq(section)),
         )
         .and_where_option(query.cursor.map(|cursor| {
@@ -108,7 +109,7 @@ pub(crate) async fn list(
             )
         }))
         .order_by(Post::Created, Order::Desc)
-        .limit(query.limit)
+        .limit(query.limit.parse().unwrap_or(20))
         .build_sqlx(PostgresQueryBuilder);
 
     debug!("sql: {sql}");
@@ -120,16 +121,19 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
-            .unwrap_or(json!({}));
+            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+            .unwrap_or(json!({
+                "did": row.repo
+            }));
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
-            actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+            author: identity,
             title: row.title,
             text: row.text,
-            visited_count: row.visited_count,
+            visited_count: row.visited_count.to_string(),
             visited: row.visited,
             updated: row.updated,
             created: row.created,
@@ -155,17 +159,19 @@ pub(crate) async fn list(
 #[derive(Debug, Default, Validate, Deserialize)]
 #[serde(default)]
 pub(crate) struct TopQuery {
-    pub section_id: i32,
+    pub section_id: String,
 }
 
 pub(crate) async fn top(
     State(state): State<AppView>,
     Json(query): Json<TopQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    let section_id: i32 = query.section_id.parse()?;
+
     let (sql, values) = sea_query::Query::select()
         .columns([Section::Id, Section::Administrators])
         .from(Section::Table)
-        .and_where(Expr::col((Section::Table, Section::Id)).eq(query.section_id))
+        .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
         .build_sqlx(PostgresQueryBuilder);
     let section: (i32, Option<Vec<String>>) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
@@ -204,7 +210,7 @@ pub(crate) async fn top(
             Section::Table,
             Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
         )
-        .and_where(Expr::col((Post::Table, Post::SectionId)).eq(query.section_id))
+        .and_where(Expr::col((Post::Table, Post::SectionId)).eq(section_id))
         .and_where(Expr::col((Post::Table, Post::Repo)).is_in(administrators))
         .order_by(Post::Created, Order::Desc)
         .limit(10)
@@ -219,16 +225,19 @@ pub(crate) async fn top(
 
     let mut views = vec![];
     for row in rows {
-        let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
-            .unwrap_or(json!({}));
+            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+            .unwrap_or(json!({
+                "did": row.repo
+            }));
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
-            actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+            author: identity,
             title: row.title,
             text: row.text,
-            visited_count: row.visited_count,
+            visited_count: row.visited_count.to_string(),
             visited: row.visited,
             updated: row.updated,
             created: row.created,
@@ -275,18 +284,24 @@ pub(crate) async fn detail(
     let row: PostRow = query_as_with::<_, PostRow, _>(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|_| AppError::NotFound)?;
+        .map_err(|e| {
+            debug!("exec sql failed: {e}");
+            AppError::NotFound
+        })?;
 
-    let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+    let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
         .await
-        .unwrap_or(json!({}));
+        .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+        .unwrap_or(json!({
+            "did": row.repo
+        }));
     let view = PostView {
         uri: row.uri,
         cid: row.cid,
-        actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+        author: identity,
         title: row.title,
         text: row.text,
-        visited_count: row.visited_count,
+        visited_count: row.visited_count.to_string(),
         visited: row.visited,
         updated: row.updated,
         created: row.created,

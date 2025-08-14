@@ -1,4 +1,4 @@
-use color_eyre::eyre::eyre;
+use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
@@ -75,13 +75,16 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let identity_row = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
-            .unwrap_or(json!({}));
+            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
+            .unwrap_or(json!({
+                "did": row.repo
+            }));
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,
-            actior: identity_row.get("value").cloned().unwrap_or(json!({})),
+            actior: identity,
             root: row.root,
             parent: row.parent,
             text: row.text,

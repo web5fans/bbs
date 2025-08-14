@@ -62,8 +62,9 @@ async fn main() -> Result<()> {
 
     // api
     let router = Router::new()
-        .route("/api/section/list", get(api::section::list))
         .route("/api/record/create", post(api::record::create))
+        .route("/api/section/list", get(api::section::list))
+        .route("/api/section/detail", get(api::section::detail))
         .route("/api/post/list", post(api::post::list))
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
