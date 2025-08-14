@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use color_eyre::{Result, eyre::eyre};
 use serde_json::{Value, json};
@@ -91,7 +91,7 @@ pub async fn direct_writes(
     signing_key: &str,
     root: &Value,
 ) -> Result<Value> {
-    reqwest::Client::new()
+    let rsp = reqwest::Client::new()
         .post(format!("{url}/xrpc/com.atproto.web5.directWrites"))
         .bearer_auth(auth)
         .header("Content-Type", "application/json; charset=utf-8")
@@ -108,8 +108,12 @@ pub async fn direct_writes(
         )
         .send()
         .await
-        .map_err(|e| eyre!("call pds failed: {e}"))?
-        .json::<Value>()
+        .map_err(|e| eyre!("call pds failed: {e}"))?;
+    debug!("pds rsp: {rsp:?}");
+    let body_str = rsp
+        .text()
         .await
-        .map_err(|e| eyre!("decode pds response failed: {e}"))
+        .map_err(|e| eyre!("read pds response failed: {e}"))?;
+    debug!("pds rsp body: {body_str}");
+    Value::from_str(&body_str).map_err(|e| eyre!("decode pds response failed: {e}"))
 }
