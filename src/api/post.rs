@@ -38,7 +38,7 @@ pub(crate) struct NewPost {
 pub(crate) struct PostQuery {
     pub section_id: Option<String>,
     pub cursor: Option<String>,
-    pub limit: String,
+    pub limit: u64,
     pub q: Option<String>,
     pub repo: Option<String>,
 }
@@ -48,7 +48,7 @@ impl Default for PostQuery {
         Self {
             section_id: Default::default(),
             cursor: Default::default(),
-            limit: "20".to_string(),
+            limit: 20,
             q: Default::default(),
             repo: Default::default(),
         }
@@ -109,7 +109,7 @@ pub(crate) async fn list(
             )
         }))
         .order_by(Post::Created, Order::Desc)
-        .limit(query.limit.parse().unwrap_or(20))
+        .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
     debug!("sql: {sql}");
