@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use color_eyre::Result;
+use color_eyre::{Result, eyre::OptionExt};
 use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -77,6 +77,10 @@ impl Reply {
         uri: &str,
         cid: &str,
     ) -> Result<()> {
+        let created = reply["created"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+            .ok_or_eyre("error in created")?;
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
@@ -95,7 +99,7 @@ impl Reply {
                 reply["root"].clone().into(),
                 reply["parent"].clone().into(),
                 reply["text"].clone().into(),
-                reply["created"].clone().into(),
+                created.into(),
             ])?
             .returning_col(Self::Uri)
             .build_sqlx(PostgresQueryBuilder);
