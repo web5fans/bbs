@@ -22,13 +22,20 @@ pub(crate) async fn list(
     Query(query): Query<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
-        .columns([Section::Id, Section::Name, Section::Administrators])
+        .columns([
+            Section::Id,
+            Section::Name,
+            Section::Description,
+            Section::Owner,
+            Section::Administrators,
+        ])
         .from(Section::Table)
         .and_where(
             if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
                 Expr::col((Section::Table, Section::Permission))
                     .eq(0)
                     .or(Expr::col((Section::Table, Section::Administrators)).contains(repo))
+                    .or(Expr::col((Section::Table, Section::Owner)).eq(repo))
             } else {
                 Expr::col((Section::Table, Section::Permission)).eq(0)
             },

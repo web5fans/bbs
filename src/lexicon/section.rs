@@ -11,6 +11,8 @@ pub enum Section {
     Id,
     Permission,
     Name,
+    Description,
+    Owner,
     Administrators,
     Updated,
     Created,
@@ -35,6 +37,8 @@ impl Section {
                     .default(0),
             )
             .col(ColumnDef::new(Self::Name).string().not_null())
+            .col(ColumnDef::new(Self::Description).string())
+            .col(ColumnDef::new(Self::Owner).string())
             .col(ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())))
             .col(
                 ColumnDef::new(Self::Updated)
@@ -67,6 +71,8 @@ impl Section {
                     .default(0),
             )
             .add_column_if_not_exists(ColumnDef::new(Self::Name).string().not_null())
+            .add_column_if_not_exists(ColumnDef::new(Self::Description).string())
+            .add_column_if_not_exists(ColumnDef::new(Self::Owner).string())
             .add_column_if_not_exists(
                 ColumnDef::new(Self::Administrators)
                     .array(ColumnType::String(Default::default()))
@@ -109,7 +115,9 @@ impl Section {
 pub struct SectionRow {
     id: i32,
     name: String,
+    description: Option<String>,
     permission: i32,
+    owner: Option<String>,
     administrators: Option<Vec<String>>,
     updated: NaiveDateTime,
     created: NaiveDateTime,
@@ -119,5 +127,7 @@ pub struct SectionRow {
 pub struct SectionRowSample {
     id: i32,
     name: String,
+    description: Option<String>,
+    owner: Option<String>,
     administrators: Option<Vec<String>>,
 }
