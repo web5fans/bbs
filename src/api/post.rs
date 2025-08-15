@@ -140,9 +140,7 @@ pub(crate) async fn list(
             section: row.section,
         });
     }
-    let cursor = views
-        .last()
-        .map(|r| r.created.format("%Y-%m-%d %H:%M:%S").to_string());
+    let cursor = views.last().map(|r| r.created.to_rfc3339());
     let result = if let Some(cursor) = cursor {
         json!({
             "cursor": cursor,

@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
 use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -32,36 +32,13 @@ impl Reply {
             .col(ColumnDef::new(Self::Text).string().not_null())
             .col(
                 ColumnDef::new(Self::Updated)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
             .col(
                 ColumnDef::new(Self::Created)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await?;
-
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(ColumnDef::new(Self::Uri).string().not_null().primary_key())
-            .add_column_if_not_exists(ColumnDef::new(Self::Cid).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Repo).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Root).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Parent).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Text).string().not_null())
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Updated)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Created)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
@@ -91,7 +68,7 @@ impl Reply {
             .ok_or_eyre("error in text")?;
         let created = reply["created"]
             .as_str()
-            .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .ok_or_eyre("error in created")?;
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
@@ -131,8 +108,8 @@ pub struct ReplyRow {
     pub root: String,
     pub parent: String,
     pub text: String,
-    pub updated: NaiveDateTime,
-    pub created: NaiveDateTime,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
 }
 
 #[derive(Debug, Serialize)]
@@ -144,6 +121,6 @@ pub struct ReplyView {
     pub root: String,
     pub parent: String,
     pub text: String,
-    pub updated: NaiveDateTime,
-    pub created: NaiveDateTime,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
 }

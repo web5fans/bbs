@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local};
 use color_eyre::Result;
 use sea_query::{ColumnDef, ColumnType, Expr, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -43,51 +43,13 @@ impl Section {
             .col(ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())))
             .col(
                 ColumnDef::new(Self::Updated)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
             .col(
                 ColumnDef::new(Self::Created)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await?;
-
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Id)
-                    .integer()
-                    .not_null()
-                    .auto_increment()
-                    .primary_key(),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Permission)
-                    .integer()
-                    .not_null()
-                    .default(0),
-            )
-            .add_column_if_not_exists(ColumnDef::new(Self::Name).string().not_null())
-            .add_column_if_not_exists(ColumnDef::new(Self::Description).string())
-            .add_column_if_not_exists(ColumnDef::new(Self::Owner).string())
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Administrators)
-                    .array(ColumnType::String(Default::default()))
-                    .default::<Vec<String>>(vec![]),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Updated)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Created)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
@@ -120,8 +82,8 @@ pub struct SectionRow {
     permission: i32,
     owner: Option<String>,
     administrators: Option<Vec<String>>,
-    updated: NaiveDateTime,
-    created: NaiveDateTime,
+    updated: DateTime<Local>,
+    created: DateTime<Local>,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

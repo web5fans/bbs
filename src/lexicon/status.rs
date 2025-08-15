@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local};
 use color_eyre::Result;
 use sea_query::{ColumnDef, Expr, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -40,49 +40,13 @@ impl Status {
             )
             .col(
                 ColumnDef::new(Self::Updated)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
             .col(
                 ColumnDef::new(Self::Created)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await?;
-
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Id)
-                    .integer()
-                    .not_null()
-                    .auto_increment()
-                    .primary_key(),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::OnlineCount)
-                    .integer()
-                    .not_null()
-                    .default(0),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::VisitedCount)
-                    .integer()
-                    .not_null()
-                    .default(0),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Updated)
-                    .date_time()
-                    .not_null()
-                    .default(Expr::current_timestamp()),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::Created)
-                    .date_time()
+                    .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
@@ -110,6 +74,6 @@ pub struct StatusRow {
     id: u32,
     online_count: u32,
     visited_count: u32,
-    updated: NaiveDateTime,
-    created: NaiveDateTime,
+    updated: DateTime<Local>,
+    created: DateTime<Local>,
 }
