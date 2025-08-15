@@ -77,6 +77,18 @@ impl Reply {
         uri: &str,
         cid: &str,
     ) -> Result<()> {
+        let root = reply["root"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .ok_or_eyre("error in root")?;
+        let parent = reply["parent"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .ok_or_eyre("error in parent")?;
+        let text = reply["text"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .ok_or_eyre("error in text")?;
         let created = reply["created"]
             .as_str()
             .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
@@ -96,9 +108,9 @@ impl Reply {
                 uri.into(),
                 cid.into(),
                 repo.into(),
-                reply["root"].clone().into(),
-                reply["parent"].clone().into(),
-                reply["text"].clone().into(),
+                root.into(),
+                parent.into(),
+                text.into(),
                 created.into(),
             ])?
             .returning_col(Self::Uri)
@@ -121,8 +133,6 @@ pub struct ReplyRow {
     pub text: String,
     pub updated: NaiveDateTime,
     pub created: NaiveDateTime,
-    #[sqlx(rename = "name")]
-    pub section: String,
 }
 
 #[derive(Debug, Serialize)]

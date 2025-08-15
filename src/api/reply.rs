@@ -59,8 +59,8 @@ pub(crate) async fn list(
             (Reply::Table, Reply::Created),
         ])
         .from(Reply::Table)
-        .and_where(Expr::col((Reply::Table, Reply::Root)).eq(query.root))
-        .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(query.parent))
+        .and_where(Expr::col((Reply::Table, Reply::Root)).eq(&query.root))
+        .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(&query.parent))
         .order_by(Reply::Created, Order::Desc)
         .offset(offset)
         .limit(query.per_page)
@@ -92,9 +92,25 @@ pub(crate) async fn list(
             created: row.created,
         });
     }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Reply::Table, Reply::Uri)).count())
+        .from(Reply::Table)
+        .and_where(Expr::col((Reply::Table, Reply::Root)).eq(query.root))
+        .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(query.parent))
+        .build_sqlx(PostgresQueryBuilder);
+
+    debug!("sql: {sql}");
+
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
     Ok(ok(json!({
-        "posts": views,
+        "replies": views,
         "page": query.page,
         "per_page": query.per_page,
+        "total":  total.0
     })))
 }

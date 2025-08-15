@@ -105,7 +105,14 @@ impl Post {
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-
+        let title = post["title"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .ok_or_eyre("error in title")?;
+        let text = post["text"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .ok_or_eyre("error in text")?;
         let created = post["created"]
             .as_str()
             .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
@@ -126,8 +133,8 @@ impl Post {
                 cid.into(),
                 repo.into(),
                 section_id.into(),
-                post["title"].clone().into(),
-                post["text"].clone().into(),
+                title.into(),
+                text.into(),
                 created.into(),
             ])?
             .returning_col(Self::Uri)
