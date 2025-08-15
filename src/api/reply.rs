@@ -61,7 +61,7 @@ pub(crate) async fn list(
         .from(Reply::Table)
         .and_where(Expr::col((Reply::Table, Reply::Root)).eq(&query.root))
         .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(&query.parent))
-        .order_by(Reply::Created, Order::Desc)
+        .order_by(Reply::Created, Order::Asc)
         .offset(offset)
         .limit(query.per_page)
         .build_sqlx(PostgresQueryBuilder);
