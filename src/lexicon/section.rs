@@ -77,7 +77,7 @@ impl Section {
             .add_column_if_not_exists(
                 ColumnDef::new(Self::Administrators)
                     .array(ColumnType::String(Default::default()))
-                    .default(vec![]),
+                    .default::<Vec<String>>(vec![]),
             )
             .add_column_if_not_exists(
                 ColumnDef::new(Self::Updated)

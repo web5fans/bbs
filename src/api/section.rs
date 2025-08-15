@@ -6,7 +6,7 @@ use common_x::restful::{
     },
     ok,
 };
-use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder, extension::postgres::PgExpr};
+use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde_json::{Value, json};
 use sqlx::query_as_with;
@@ -35,14 +35,18 @@ pub(crate) async fn list(
             if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
                 Expr::col((Section::Table, Section::Permission))
                     .eq(0)
-                    .or(Expr::col((Section::Table, Section::Administrators)).contains(repo))
                     .or(Expr::col((Section::Table, Section::Owner)).eq(repo))
+                    .or(Expr::Custom(format!(
+                        "'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))"
+                    )))
             } else {
                 Expr::col((Section::Table, Section::Permission)).eq(0)
             },
         )
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
+
+    debug!("sql: {sql}");
 
     let rows: Vec<SectionRowSample> = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_all(&state.db)

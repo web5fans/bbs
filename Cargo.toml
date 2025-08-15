@@ -1,6 +1,6 @@
 [package]
 name = "bbs"
-version = "0.2.35"
+version = "0.2.36"
 edition = "2024"
 authors = ["JLer <jlerxky@live.com>"]
 
@@ -14,13 +14,22 @@ common_x = { version = "0.8", default-features = false, features = [
     "restful",
 ] }
 reqwest = { version = "0.12", features = ["json"] }
-sea-query = "1.0.0-rc.8"
+sea-query = { version = "1.0.0-rc.9", default-features = false, features = [
+    "audit",
+    "backend-postgres",
+    "derive",
+    "postgres-array",
+    "postgres-interval",
+    "postgres-vector",
+] }
 sea-query-sqlx = { version = "0.8.0-rc.8", features = [
     "sqlx-postgres",
     "with-chrono",
     "with-json",
     "with-rust_decimal",
     "with-uuid",
+    "postgres-array",
+    "postgres-vector",
 ] }
 serde = "1.0"
 serde_json = "1.0"
