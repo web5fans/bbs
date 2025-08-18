@@ -2,7 +2,7 @@ use axum_extra::{
     TypedHeader,
     headers::{Authorization, authorization::Bearer},
 };
-use color_eyre::eyre::OptionExt;
+use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
@@ -61,9 +61,15 @@ pub(crate) async fn create(
     if let Some(Some(record_type)) = new_record.value.get("$type").map(|t| t.as_str()) {
         match record_type {
             NSID_POST => {
+                if !state.whitelist.contains(&new_record.repo) {
+                    return Err(eyre!("Operation is not allowed!").into());
+                }
                 Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
             }
             NSID_REPLY => {
+                if !state.whitelist.contains(&new_record.repo) {
+                    return Err(eyre!("Operation is not allowed!").into());
+                }
                 Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
             }
             _ => {}

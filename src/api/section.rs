@@ -56,12 +56,14 @@ pub(crate) async fn list(
     let mut views = vec![];
     for row in rows {
         let owner_author = if let Some(owner) = row.owner {
-            get_record(&state.pds, &owner, NSID_PROFILE, "self")
+            let mut identity = get_record(&state.pds, &owner, NSID_PROFILE, "self")
                 .await
                 .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
                 .unwrap_or(json!({
                     "did": owner
-                }))
+                }));
+            identity["did"] = Value::String(owner.clone());
+            identity
         } else {
             json!({})
         };
@@ -70,14 +72,16 @@ pub(crate) async fn list(
 
         if let Some(admins) = row.administrators {
             for admin in admins {
-                administrators.push(
-                    get_record(&state.pds, &admin, NSID_PROFILE, "self")
+                administrators.push({
+                    let mut identity = get_record(&state.pds, &admin, NSID_PROFILE, "self")
                         .await
                         .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
                         .unwrap_or(json!({
                             "did": admin
-                        })),
-                );
+                        }));
+                    identity["did"] = Value::String(admin.clone());
+                    identity
+                });
             }
         }
         views.push(SectionView {
@@ -125,12 +129,14 @@ pub(crate) async fn detail(
         })?;
 
     let owner_author = if let Some(owner) = row.owner {
-        get_record(&state.pds, &owner, NSID_PROFILE, "self")
+        let mut identity = get_record(&state.pds, &owner, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
             .unwrap_or(json!({
                 "did": owner
-            }))
+            }));
+        identity["did"] = Value::String(owner.clone());
+        identity
     } else {
         json!({})
     };
@@ -139,14 +145,16 @@ pub(crate) async fn detail(
 
     if let Some(admins) = row.administrators {
         for admin in admins {
-            administrators.push(
-                get_record(&state.pds, &admin, NSID_PROFILE, "self")
+            administrators.push({
+                let mut identity = get_record(&state.pds, &admin, NSID_PROFILE, "self")
                     .await
                     .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
                     .unwrap_or(json!({
                         "did": admin
-                    })),
-            );
+                    }));
+                identity["did"] = Value::String(admin.clone());
+                identity
+            });
         }
     }
 

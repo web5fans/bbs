@@ -25,17 +25,20 @@ use crate::lexicon::status::Status;
 struct AppView {
     db: Pool<Postgres>,
     pds: String,
+    whitelist: Vec<String>,
 }
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version)]
 pub struct Args {
-    #[clap(long, default_value = "info")]
+    #[clap(short, long, default_value = "info")]
     log_filter: String,
-    #[clap(long)]
+    #[clap(short, long)]
     db_url: String,
-    #[clap(long)]
+    #[clap(short, long)]
     pds: String,
+    #[clap(short, long)]
+    whitelist: String,
 }
 
 #[tokio::main]
@@ -58,6 +61,7 @@ async fn main() -> Result<()> {
     let bbs = AppView {
         db,
         pds: args.pds.clone(),
+        whitelist: args.whitelist.split(',').map(|s| s.to_string()).collect(),
     };
 
     // api

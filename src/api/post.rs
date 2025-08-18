@@ -125,12 +125,13 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
             .unwrap_or(json!({
                 "did": row.repo
             }));
+        identity["did"] = Value::String(row.repo.clone());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
@@ -231,12 +232,13 @@ pub(crate) async fn top(
 
     let mut views = vec![];
     for row in rows {
-        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
             .unwrap_or(json!({
                 "did": row.repo
             }));
+        identity["did"] = Value::String(row.repo.clone());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
@@ -311,12 +313,13 @@ pub(crate) async fn detail(
     debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
-    let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+    let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
         .await
         .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
         .unwrap_or(json!({
             "did": row.repo
         }));
+    identity["did"] = Value::String(row.repo.clone());
     let view = PostView {
         uri: row.uri,
         cid: row.cid,

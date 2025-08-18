@@ -6,7 +6,7 @@ use common_x::restful::{
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use sqlx::query_as_with;
 use validator::Validate;
 
@@ -75,12 +75,13 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
+        let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
             .unwrap_or(json!({
                 "did": row.repo
             }));
+        identity["did"] = Value::String(row.repo.clone());
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,
