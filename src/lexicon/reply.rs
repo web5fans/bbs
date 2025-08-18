@@ -12,6 +12,7 @@ pub enum Reply {
     Uri,
     Cid,
     Repo,
+    SectionId,
     Root,
     Parent,
     Text,
@@ -27,6 +28,7 @@ impl Reply {
             .col(ColumnDef::new(Self::Uri).string().not_null().primary_key())
             .col(ColumnDef::new(Self::Cid).string().not_null())
             .col(ColumnDef::new(Self::Repo).string().not_null())
+            .col(ColumnDef::new(Self::SectionId).integer().not_null())
             .col(ColumnDef::new(Self::Root).string().not_null())
             .col(ColumnDef::new(Self::Parent).string().not_null())
             .col(ColumnDef::new(Self::Text).string().not_null())
@@ -54,6 +56,10 @@ impl Reply {
         uri: &str,
         cid: &str,
     ) -> Result<()> {
+        let section_id = reply["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
         let root = reply["root"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
@@ -76,6 +82,7 @@ impl Reply {
                 Self::Uri,
                 Self::Cid,
                 Self::Repo,
+                Self::SectionId,
                 Self::Root,
                 Self::Parent,
                 Self::Text,
@@ -85,6 +92,7 @@ impl Reply {
                 uri.into(),
                 cid.into(),
                 repo.into(),
+                section_id.into(),
                 root.into(),
                 parent.into(),
                 text.into(),

@@ -11,7 +11,7 @@ use sea_query::{BinOper, Expr, ExprTrait, Func, IntoColumnRef, Order, PostgresQu
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sqlx::query_as_with;
+use sqlx::{Executor, query_as_with, query_with};
 use validator::Validate;
 
 use crate::{
@@ -79,7 +79,10 @@ pub(crate) async fn list(
             (Post::Table, Post::Updated),
             (Post::Table, Post::Created),
         ])
-        .column((Section::Table, Section::Name))
+        .columns([
+            (Section::Table, Section::Id),
+            (Section::Table, Section::Name),
+        ])
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -137,6 +140,7 @@ pub(crate) async fn list(
             visited: row.visited,
             updated: row.updated,
             created: row.created,
+            section_id: row.section_id.to_string(),
             section: row.section,
         });
     }
@@ -202,7 +206,10 @@ pub(crate) async fn top(
             (Post::Table, Post::Updated),
             (Post::Table, Post::Created),
         ])
-        .column((Section::Table, Section::Name))
+        .columns([
+            (Section::Table, Section::Id),
+            (Section::Table, Section::Name),
+        ])
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -239,6 +246,7 @@ pub(crate) async fn top(
             visited: row.visited,
             updated: row.updated,
             created: row.created,
+            section_id: row.section_id.to_string(),
             section: row.section,
         });
     }
@@ -268,7 +276,10 @@ pub(crate) async fn detail(
             (Post::Table, Post::Updated),
             (Post::Table, Post::Created),
         ])
-        .column((Section::Table, Section::Name))
+        .columns([
+            (Section::Table, Section::Id),
+            (Section::Table, Section::Name),
+        ])
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -287,6 +298,18 @@ pub(crate) async fn detail(
             AppError::NotFound
         })?;
 
+    // update visited
+    let (sql, values) = sea_query::Query::update()
+        .table(Post::Table)
+        .values([
+            (Post::VisitedCount, (row.visited_count + 1).into()),
+            (Post::Visited, (chrono::Local::now()).into()),
+        ])
+        .and_where(Expr::col(Post::Uri).eq(&row.uri))
+        .build_sqlx(PostgresQueryBuilder);
+    debug!("update exec sql: {sql}");
+    state.db.execute(query_with(&sql, values)).await?;
+
     let identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
         .await
         .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -303,6 +326,7 @@ pub(crate) async fn detail(
         visited: row.visited,
         updated: row.updated,
         created: row.created,
+        section_id: row.section_id.to_string(),
         section: row.section,
     };
 

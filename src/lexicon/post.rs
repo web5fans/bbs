@@ -38,7 +38,12 @@ impl Post {
                     .not_null()
                     .default(0),
             )
-            .col(ColumnDef::new(Self::Visited).timestamp_with_time_zone())
+            .col(
+                ColumnDef::new(Self::Visited)
+                    .timestamp_with_time_zone()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -47,6 +52,17 @@ impl Post {
             )
             .col(
                 ColumnDef::new(Self::Created)
+                    .timestamp_with_time_zone()
+                    .not_null()
+                    .default(Expr::current_timestamp()),
+            )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .modify_column(
+                ColumnDef::new(Self::Visited)
                     .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
@@ -117,9 +133,11 @@ pub struct PostRow {
     pub title: String,
     pub text: String,
     pub visited_count: i32,
-    pub visited: Option<DateTime<Local>>,
+    pub visited: DateTime<Local>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
+    #[sqlx(rename = "id")]
+    pub section_id: i32,
     #[sqlx(rename = "name")]
     pub section: String,
 }
@@ -132,9 +150,10 @@ pub struct PostView {
     pub title: String,
     pub text: String,
     pub visited_count: String,
-    pub visited: Option<DateTime<Local>>,
+    pub visited: DateTime<Local>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
+    pub section_id: String,
     pub section: String,
 }
 
