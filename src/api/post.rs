@@ -98,17 +98,18 @@ pub(crate) async fn list(
                 .repo
                 .map(|repo| Expr::col((Post::Table, Post::Repo)).eq(repo)),
         )
-        .and_where_option(
-            query
-                .section_id
-                .and_then(|id| id.parse::<i32>().ok())
-                .map(|section| Expr::col((Post::Table, Post::SectionId)).eq(section)),
+        .and_where(
+            if let Some(section) = query.section_id.and_then(|id| id.parse::<i32>().ok()) {
+                Expr::col((Post::Table, Post::SectionId)).eq(section)
+            } else {
+                Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0)
+            },
         )
         .and_where_option(query.cursor.map(|cursor| {
             Expr::col((Post::Table, Post::Created)).binary(
                 BinOper::SmallerThan,
                 Func::cust(ToTimestamp)
-                    .args([Expr::val(cursor), Expr::val("YYYY-MM-DD HH24:MI:SS")]),
+                    .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
             )
         }))
         .order_by(Post::Created, Order::Desc)
