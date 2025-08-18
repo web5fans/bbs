@@ -93,6 +93,8 @@ pub struct SectionRowSample {
     pub description: Option<String>,
     pub owner: Option<String>,
     pub administrators: Option<Vec<String>>,
+    pub post_count: i64,
+    pub reply_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,4 +104,6 @@ pub struct SectionView {
     pub description: Option<String>,
     pub owner: Value,
     pub administrators: Value,
+    pub post_count: String,
+    pub reply_count: String,
 }

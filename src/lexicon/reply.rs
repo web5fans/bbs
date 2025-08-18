@@ -125,7 +125,7 @@ pub struct ReplyRow {
 pub struct ReplyView {
     pub uri: String,
     pub cid: String,
-    pub actior: Value,
+    pub author: Value,
     pub root: String,
     pub parent: String,
     pub text: String,

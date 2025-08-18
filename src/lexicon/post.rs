@@ -140,6 +140,7 @@ pub struct PostRow {
     pub section_id: i32,
     #[sqlx(rename = "name")]
     pub section: String,
+    pub reply_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -155,6 +156,7 @@ pub struct PostView {
     pub created: DateTime<Local>,
     pub section_id: String,
     pub section: String,
+    pub reply_count: String,
 }
 
 #[test]

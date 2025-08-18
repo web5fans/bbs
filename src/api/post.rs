@@ -83,6 +83,7 @@ pub(crate) async fn list(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -144,6 +145,7 @@ pub(crate) async fn list(
             created: row.created,
             section_id: row.section_id.to_string(),
             section: row.section,
+            reply_count: row.reply_count.to_string(),
         });
     }
     let cursor = views.last().map(|r| r.created.to_rfc3339());
@@ -212,6 +214,7 @@ pub(crate) async fn top(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -251,6 +254,7 @@ pub(crate) async fn top(
             created: row.created,
             section_id: row.section_id.to_string(),
             section: row.section,
+            reply_count: row.reply_count.to_string(),
         });
     }
     Ok(ok(json!({
@@ -283,6 +287,7 @@ pub(crate) async fn detail(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -332,6 +337,7 @@ pub(crate) async fn detail(
         created: row.created,
         section_id: row.section_id.to_string(),
         section: row.section,
+        reply_count: row.reply_count.to_string(),
     };
 
     Ok(ok(view))

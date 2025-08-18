@@ -6,7 +6,7 @@ use common_x::restful::{
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::query_as_with;
 use validator::Validate;
 
@@ -85,7 +85,7 @@ pub(crate) async fn list(
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,
-            actior: identity,
+            author: identity,
             root: row.root,
             parent: row.parent,
             text: row.text,

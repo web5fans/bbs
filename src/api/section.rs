@@ -30,6 +30,8 @@ pub(crate) async fn list(
             Section::Owner,
             Section::Administrators,
         ])
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
         .from(Section::Table)
         .and_where(
             if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
@@ -90,6 +92,8 @@ pub(crate) async fn list(
             description: row.description,
             owner: owner_author,
             administrators: Value::Array(administrators),
+            post_count: row.post_count.to_string(),
+            reply_count: row.reply_count.to_string(),
         });
     }
 
@@ -114,6 +118,8 @@ pub(crate) async fn detail(
             Section::Owner,
             Section::Administrators,
         ])
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
         .from(Section::Table)
         .and_where(Expr::col(Section::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
@@ -164,5 +170,7 @@ pub(crate) async fn detail(
         description: row.description,
         owner: owner_author,
         administrators: Value::Array(administrators),
+        post_count: row.post_count.to_string(),
+        reply_count: row.reply_count.to_string(),
     }))
 }
