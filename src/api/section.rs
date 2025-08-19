@@ -13,12 +13,9 @@ use sqlx::query_as_with;
 
 use crate::{
     AppView,
-    atproto::{NSID_PROFILE, get_record},
+    api::build_author,
     error::AppError,
-    lexicon::{
-        post::Post,
-        section::{Section, SectionRowSample, SectionView},
-    },
+    lexicon::section::{Section, SectionRowSample, SectionView},
 };
 
 pub(crate) async fn list(
@@ -62,29 +59,7 @@ pub(crate) async fn list(
     let mut views = vec![];
     for row in rows {
         let owner_author = if let Some(owner) = row.owner {
-            // select post count
-            let (sql, values) = sea_query::Query::select()
-                .expr(Expr::col((Post::Table, Post::Uri)).count())
-                .from(Post::Table)
-                .and_where(Expr::col(Post::Repo).eq(&owner))
-                .build_sqlx(PostgresQueryBuilder);
-            debug!("post count exec sql: {sql}");
-            let count_row: (i64,) = query_as_with(&sql, values.clone())
-                .fetch_one(&state.db)
-                .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
-            let mut identity = get_record(&state.pds, &owner, NSID_PROFILE, "self")
-                .await
-                .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-                .unwrap_or(json!({
-                    "did": owner
-                }));
-            identity["did"] = Value::String(owner.clone());
-            identity["post_count"] = Value::String(count_row.0.to_string());
-            identity
+            build_author(&state, &owner).await
         } else {
             json!({})
         };
@@ -93,31 +68,7 @@ pub(crate) async fn list(
 
         if let Some(admins) = row.administrators {
             for admin in admins {
-                // select post count
-                let (sql, values) = sea_query::Query::select()
-                    .expr(Expr::col((Post::Table, Post::Uri)).count())
-                    .from(Post::Table)
-                    .and_where(Expr::col(Post::Repo).eq(&admin))
-                    .build_sqlx(PostgresQueryBuilder);
-                debug!("post count exec sql: {sql}");
-                let count_row: (i64,) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                administrators.push({
-                    let mut identity = get_record(&state.pds, &admin, NSID_PROFILE, "self")
-                        .await
-                        .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-                        .unwrap_or(json!({
-                            "did": admin
-                        }));
-                    identity["did"] = Value::String(admin.clone());
-                    identity["post_count"] = Value::String(count_row.0.to_string());
-                    identity
-                });
+                administrators.push(build_author(&state, &admin).await);
             }
         }
         views.push(SectionView {
@@ -171,29 +122,7 @@ pub(crate) async fn detail(
         })?;
 
     let owner_author = if let Some(owner) = row.owner {
-        // select post count
-        let (sql, values) = sea_query::Query::select()
-            .expr(Expr::col((Post::Table, Post::Uri)).count())
-            .from(Post::Table)
-            .and_where(Expr::col(Post::Repo).eq(&owner))
-            .build_sqlx(PostgresQueryBuilder);
-        debug!("post count exec sql: {sql}");
-        let count_row: (i64,) = query_as_with(&sql, values.clone())
-            .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                debug!("exec sql failed: {e}");
-                AppError::NotFound
-            })?;
-        let mut identity = get_record(&state.pds, &owner, NSID_PROFILE, "self")
-            .await
-            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-            .unwrap_or(json!({
-                "did": owner
-            }));
-        identity["did"] = Value::String(owner.clone());
-        identity["post_count"] = Value::String(count_row.0.to_string());
-        identity
+        build_author(&state, &owner).await
     } else {
         json!({})
     };
@@ -202,31 +131,7 @@ pub(crate) async fn detail(
 
     if let Some(admins) = row.administrators {
         for admin in admins {
-            administrators.push({
-                // select post count
-                let (sql, values) = sea_query::Query::select()
-                    .expr(Expr::col((Post::Table, Post::Uri)).count())
-                    .from(Post::Table)
-                    .and_where(Expr::col(Post::Repo).eq(&admin))
-                    .build_sqlx(PostgresQueryBuilder);
-                debug!("post count exec sql: {sql}");
-                let count_row: (i64,) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                let mut identity = get_record(&state.pds, &admin, NSID_PROFILE, "self")
-                    .await
-                    .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-                    .unwrap_or(json!({
-                        "did": admin
-                    }));
-                identity["did"] = Value::String(admin.clone());
-                identity["post_count"] = Value::String(count_row.0.to_string());
-                identity
-            });
+            administrators.push(build_author(&state, &admin).await);
         }
     }
 

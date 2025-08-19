@@ -16,7 +16,7 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    atproto::{NSID_PROFILE, get_record},
+    api::build_author,
     error::AppError,
     lexicon::{
         post::{Post, PostRow, PostView},
@@ -126,32 +126,10 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        // select post count
-        let (sql, values) = sea_query::Query::select()
-            .expr(Expr::col((Post::Table, Post::Uri)).count())
-            .from(Post::Table)
-            .and_where(Expr::col(Post::Repo).eq(&row.repo))
-            .build_sqlx(PostgresQueryBuilder);
-        debug!("post count exec sql: {sql}");
-        let count_row: (i64,) = query_as_with(&sql, values.clone())
-            .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                debug!("exec sql failed: {e}");
-                AppError::NotFound
-            })?;
-        let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
-            .await
-            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-            .unwrap_or(json!({
-                "did": row.repo
-            }));
-        identity["did"] = Value::String(row.repo.clone());
-        identity["post_count"] = Value::String(count_row.0.to_string());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
-            author: identity,
+            author: build_author(&state, &row.repo).await,
             title: row.title,
             text: row.text,
             visited_count: row.visited_count.to_string(),
@@ -250,32 +228,10 @@ pub(crate) async fn top(
 
     let mut views = vec![];
     for row in rows {
-        // select post count
-        let (sql, values) = sea_query::Query::select()
-            .expr(Expr::col((Post::Table, Post::Uri)).count())
-            .from(Post::Table)
-            .and_where(Expr::col(Post::Repo).eq(&row.repo))
-            .build_sqlx(PostgresQueryBuilder);
-        debug!("post count exec sql: {sql}");
-        let count_row: (i64,) = query_as_with(&sql, values.clone())
-            .fetch_one(&state.db)
-            .await
-            .map_err(|e| {
-                debug!("exec sql failed: {e}");
-                AppError::NotFound
-            })?;
-        let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
-            .await
-            .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-            .unwrap_or(json!({
-                "did": row.repo
-            }));
-        identity["did"] = Value::String(row.repo.clone());
-        identity["post_count"] = Value::String(count_row.0.to_string());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
-            author: identity,
+            author: build_author(&state, &row.repo).await,
             title: row.title,
             text: row.text,
             visited_count: row.visited_count.to_string(),
@@ -348,33 +304,10 @@ pub(crate) async fn detail(
     debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
-    // select post count
-    let (sql, values) = sea_query::Query::select()
-        .expr(Expr::col((Post::Table, Post::Uri)).count())
-        .from(Post::Table)
-        .and_where(Expr::col(Post::Repo).eq(&row.repo))
-        .build_sqlx(PostgresQueryBuilder);
-    debug!("post count exec sql: {sql}");
-    let count_row: (i64,) = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
-
-    let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
-        .await
-        .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-        .unwrap_or(json!({
-            "did": row.repo
-        }));
-    identity["did"] = Value::String(row.repo.clone());
-    identity["post_count"] = Value::String(count_row.0.to_string());
     let view = PostView {
         uri: row.uri,
         cid: row.cid,
-        author: identity,
+        author: build_author(&state, &row.repo).await,
         title: row.title,
         text: row.text,
         visited_count: row.visited_count.to_string(),
