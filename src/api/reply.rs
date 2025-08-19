@@ -14,7 +14,10 @@ use crate::{
     AppView,
     atproto::{NSID_PROFILE, get_record},
     error::AppError,
-    lexicon::reply::{Reply, ReplyRow, ReplyView},
+    lexicon::{
+        post::Post,
+        reply::{Reply, ReplyRow, ReplyView},
+    },
 };
 
 #[derive(Debug, Validate, Deserialize)]
@@ -75,6 +78,20 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
+        // select post count
+        let (sql, values) = sea_query::Query::select()
+            .expr(Expr::col((Post::Table, Post::Uri)).count())
+            .from(Post::Table)
+            .and_where(Expr::col(Post::Repo).eq(&row.repo))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("post count exec sql: {sql}");
+        let count_row: (i64,) = query_as_with(&sql, values.clone())
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| {
+                debug!("exec sql failed: {e}");
+                AppError::NotFound
+            })?;
         let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -82,6 +99,7 @@ pub(crate) async fn list(
                 "did": row.repo
             }));
         identity["did"] = Value::String(row.repo.clone());
+        identity["post_count"] = Value::String(count_row.0.to_string());
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,

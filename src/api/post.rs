@@ -126,6 +126,20 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
+        // select post count
+        let (sql, values) = sea_query::Query::select()
+            .expr(Expr::col((Post::Table, Post::Uri)).count())
+            .from(Post::Table)
+            .and_where(Expr::col(Post::Repo).eq(&row.repo))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("post count exec sql: {sql}");
+        let count_row: (i64,) = query_as_with(&sql, values.clone())
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| {
+                debug!("exec sql failed: {e}");
+                AppError::NotFound
+            })?;
         let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -133,6 +147,7 @@ pub(crate) async fn list(
                 "did": row.repo
             }));
         identity["did"] = Value::String(row.repo.clone());
+        identity["post_count"] = Value::String(count_row.0.to_string());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
@@ -235,6 +250,20 @@ pub(crate) async fn top(
 
     let mut views = vec![];
     for row in rows {
+        // select post count
+        let (sql, values) = sea_query::Query::select()
+            .expr(Expr::col((Post::Table, Post::Uri)).count())
+            .from(Post::Table)
+            .and_where(Expr::col(Post::Repo).eq(&row.repo))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("post count exec sql: {sql}");
+        let count_row: (i64,) = query_as_with(&sql, values.clone())
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| {
+                debug!("exec sql failed: {e}");
+                AppError::NotFound
+            })?;
         let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
             .await
             .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -242,6 +271,7 @@ pub(crate) async fn top(
                 "did": row.repo
             }));
         identity["did"] = Value::String(row.repo.clone());
+        identity["post_count"] = Value::String(count_row.0.to_string());
         views.push(PostView {
             uri: row.uri,
             cid: row.cid,
@@ -318,6 +348,21 @@ pub(crate) async fn detail(
     debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
+    // select post count
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Post::Table, Post::Uri)).count())
+        .from(Post::Table)
+        .and_where(Expr::col(Post::Repo).eq(&row.repo))
+        .build_sqlx(PostgresQueryBuilder);
+    debug!("post count exec sql: {sql}");
+    let count_row: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| {
+            debug!("exec sql failed: {e}");
+            AppError::NotFound
+        })?;
+
     let mut identity = get_record(&state.pds, &row.repo, NSID_PROFILE, "self")
         .await
         .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -325,6 +370,7 @@ pub(crate) async fn detail(
             "did": row.repo
         }));
     identity["did"] = Value::String(row.repo.clone());
+    identity["post_count"] = Value::String(count_row.0.to_string());
     let view = PostView {
         uri: row.uri,
         cid: row.cid,
