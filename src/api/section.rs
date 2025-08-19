@@ -30,6 +30,7 @@ pub(crate) async fn list(
             Section::Owner,
             Section::Administrators,
         ])
+        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
         .from(Section::Table)
@@ -92,6 +93,7 @@ pub(crate) async fn list(
             description: row.description,
             owner: owner_author,
             administrators: Value::Array(administrators),
+            visited_count: row.visited_count.to_string(),
             post_count: row.post_count.to_string(),
             reply_count: row.reply_count.to_string(),
         });
@@ -118,6 +120,7 @@ pub(crate) async fn detail(
             Section::Owner,
             Section::Administrators,
         ])
+        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
         .from(Section::Table)
@@ -170,6 +173,7 @@ pub(crate) async fn detail(
         description: row.description,
         owner: owner_author,
         administrators: Value::Array(administrators),
+        visited_count: row.visited_count.to_string(),
         post_count: row.post_count.to_string(),
         reply_count: row.reply_count.to_string(),
     }))
