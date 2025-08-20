@@ -14,10 +14,15 @@ pub(crate) async fn profile(
     State(state): State<AppView>,
     Query(query): Query<Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let repo: &str = query
+    let repo: String = query
         .get("repo")
         .and_then(|repo| repo.as_str())
-        .ok_or_eyre("repo not be null")?;
+        .ok_or_eyre("repo not be null")?
+        .to_string();
+    let mut author = build_author(&state, &repo).await;
+    if state.whitelist.contains(&repo) {
+        author["highlight"] = Value::String("beta".to_owned());
+    }
 
-    Ok(ok(build_author(&state, repo).await))
+    Ok(ok(author))
 }

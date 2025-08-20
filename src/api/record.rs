@@ -31,6 +31,19 @@ pub(crate) async fn create(
     TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(new_record): Json<NewRecord>,
 ) -> Result<impl IntoResponse, AppError> {
+    let record_type = new_record
+        .value
+        .get("$type")
+        .map(|t| t.as_str())
+        .ok_or_eyre("'$type' must be set")?
+        .ok_or_eyre("'$type' must be set")?;
+    if !state.whitelist.contains(&new_record.repo) {
+        match record_type {
+            NSID_POST => return Err(eyre!("Operation is not allowed!").into()),
+            NSID_REPLY => {}
+            _ => {}
+        }
+    }
     let result = direct_writes(
         &state.pds,
         auth.token(),
@@ -45,35 +58,23 @@ pub(crate) async fn create(
         &new_record.root,
     )
     .await?;
-
     debug!("pds: {}", result);
-
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
         .ok_or_eyre("create_record error: no uri")?;
-
     let cid = result
         .pointer("/results/0/cid")
         .and_then(|cid| cid.as_str())
         .ok_or_eyre("create_record error: no cid")?;
-
-    if let Some(Some(record_type)) = new_record.value.get("$type").map(|t| t.as_str()) {
-        match record_type {
-            NSID_POST => {
-                if !state.whitelist.contains(&new_record.repo) {
-                    return Err(eyre!("Operation is not allowed!").into());
-                }
-                Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
-            }
-            NSID_REPLY => {
-                if !state.whitelist.contains(&new_record.repo) {
-                    return Err(eyre!("Operation is not allowed!").into());
-                }
-                Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
-            }
-            _ => {}
+    match record_type {
+        NSID_POST => {
+            Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
         }
+        NSID_REPLY => {
+            Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+        }
+        _ => {}
     }
 
     Ok(ok(result))
