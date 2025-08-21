@@ -39,8 +39,7 @@ pub(crate) async fn create(
         .ok_or_eyre("'$type' must be set")?;
     if !state.whitelist.contains(&new_record.repo) {
         match record_type {
-            NSID_POST => return Err(eyre!("Operation is not allowed!").into()),
-            NSID_REPLY => {}
+            NSID_POST | NSID_REPLY => return Err(eyre!("Operation is not allowed!").into()),
             _ => {}
         }
     }
