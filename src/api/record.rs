@@ -17,12 +17,14 @@ use crate::{
     lexicon::{post::Post, reply::Reply},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub(crate) struct NewRecord {
     repo: String,
     rkey: String,
     value: Value,
     signing_key: String,
+    ckb_addr: String,
     root: Value,
 }
 
@@ -54,6 +56,7 @@ pub(crate) async fn create(
             "value": new_record.value
         }]),
         &new_record.signing_key,
+        &new_record.ckb_addr,
         &new_record.root,
     )
     .await?;

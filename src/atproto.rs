@@ -89,6 +89,7 @@ pub async fn direct_writes(
     repo: &str,
     writes: &Value,
     signing_key: &str,
+    ckb_addr: &str,
     root: &Value,
 ) -> Result<Value> {
     let rsp = reqwest::Client::new()
@@ -102,7 +103,8 @@ pub async fn direct_writes(
                 "validate": false,
                 "writes": writes,
                 "signingKey": signing_key,
-                "root": root
+                "root": root,
+                "ckbAddr": ckb_addr,
             })
             .to_string(),
         )

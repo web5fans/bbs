@@ -77,9 +77,9 @@ pub(crate) async fn list(
             description: row.description,
             owner: owner_author,
             administrators: Value::Array(administrators),
-            visited_count: row.visited_count.to_string(),
-            post_count: row.post_count.to_string(),
-            reply_count: row.reply_count.to_string(),
+            visited_count: row.visited_count.unwrap_or_default().to_string(),
+            post_count: row.post_count.unwrap_or_default().to_string(),
+            reply_count: row.reply_count.unwrap_or_default().to_string(),
         });
     }
 
@@ -141,8 +141,8 @@ pub(crate) async fn detail(
         description: row.description,
         owner: owner_author,
         administrators: Value::Array(administrators),
-        visited_count: row.visited_count.to_string(),
-        post_count: row.post_count.to_string(),
-        reply_count: row.reply_count.to_string(),
+        visited_count: row.visited_count.unwrap_or_default().to_string(),
+        post_count: row.post_count.unwrap_or_default().to_string(),
+        reply_count: row.reply_count.unwrap_or_default().to_string(),
     }))
 }
