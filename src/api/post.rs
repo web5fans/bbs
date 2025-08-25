@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{
@@ -20,6 +21,7 @@ use crate::{
     error::AppError,
     lexicon::{
         post::{Post, PostRow, PostView},
+        reply::Reply,
         section::Section,
     },
 };
@@ -320,4 +322,92 @@ pub(crate) async fn detail(
     };
 
     Ok(ok(view))
+}
+
+pub(crate) async fn replied(
+    State(state): State<AppView>,
+    Json(query): Json<PostQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let (sql, values) = sea_query::Query::select()
+        .columns([(Reply::Table, Reply::Root), (Reply::Table, Reply::Created)])
+        .from(Reply::Table)
+        .and_where(Expr::col((Reply::Table, Reply::Repo)).eq(query.repo))
+        .and_where_option(query.cursor.map(|cursor| {
+            Expr::col((Reply::Table, Reply::Created)).binary(
+                BinOper::SmallerThan,
+                Func::cust(ToTimestamp)
+                    .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
+            )
+        }))
+        .order_by(Reply::Created, Order::Desc)
+        .limit(query.limit)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<(String, DateTime<Local>)> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+    let cursor = rows.last().map(|r| r.1.to_rfc3339());
+    let roots = rows.into_iter().map(|r| r.0).collect::<Vec<_>>();
+
+    let (sql, values) = sea_query::Query::select()
+        .columns([
+            (Post::Table, Post::Uri),
+            (Post::Table, Post::Cid),
+            (Post::Table, Post::Repo),
+            (Post::Table, Post::Title),
+            (Post::Table, Post::Text),
+            (Post::Table, Post::VisitedCount),
+            (Post::Table, Post::Visited),
+            (Post::Table, Post::Updated),
+            (Post::Table, Post::Created),
+        ])
+        .columns([
+            (Section::Table, Section::Id),
+            (Section::Table, Section::Name),
+        ])
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .from(Post::Table)
+        .left_join(
+            Section::Table,
+            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
+        )
+        .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots))
+        .build_sqlx(PostgresQueryBuilder);
+
+    debug!("sql: {sql}");
+
+    let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let mut views = vec![];
+    for row in rows {
+        views.push(PostView {
+            uri: row.uri,
+            cid: row.cid,
+            author: build_author(&state, &row.repo).await,
+            title: row.title,
+            text: row.text,
+            visited_count: row.visited_count.to_string(),
+            visited: row.visited,
+            updated: row.updated,
+            created: row.created,
+            section_id: row.section_id.to_string(),
+            section: row.section,
+            reply_count: row.reply_count.to_string(),
+        });
+    }
+    let result = if let Some(cursor) = cursor {
+        json!({
+            "cursor": cursor,
+            "posts": views
+        })
+    } else {
+        json!({
+            "posts": views
+        })
+    };
+    Ok(ok(result))
 }

@@ -1,5 +1,5 @@
 use color_eyre::eyre::OptionExt;
-use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
+use sea_query::{BinOper, Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde_json::{Value, json};
 use sqlx::query_as_with;
@@ -21,6 +21,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .expr(Expr::col((Post::Table, Post::Uri)).count())
         .from(Post::Table)
         .and_where(Expr::col(Post::Repo).eq(repo))
+        .and_where(Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0))
         .build_sqlx(PostgresQueryBuilder);
     debug!("post count exec sql: {sql}");
     let post_count_row: (i64,) = query_as_with(&sql, values.clone())
