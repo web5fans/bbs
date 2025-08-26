@@ -108,7 +108,6 @@ impl Reply {
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
-#[allow(dead_code)]
 pub struct ReplyRow {
     pub uri: String,
     pub cid: String,
@@ -121,7 +120,6 @@ pub struct ReplyRow {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)]
 pub struct ReplyView {
     pub uri: String,
     pub cid: String,

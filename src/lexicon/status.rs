@@ -71,9 +71,9 @@ impl Status {
 #[derive(sqlx::FromRow, Debug)]
 #[allow(dead_code)]
 pub struct StatusRow {
-    id: u32,
-    online_count: u32,
-    visited_count: u32,
+    id: i32,
+    online_count: i32,
+    visited_count: i32,
     updated: DateTime<Local>,
     created: DateTime<Local>,
 }

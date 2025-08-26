@@ -125,7 +125,6 @@ impl Post {
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
-#[allow(dead_code)]
 pub struct PostRow {
     pub uri: String,
     pub cid: String,
