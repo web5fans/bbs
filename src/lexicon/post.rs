@@ -160,6 +160,24 @@ pub struct PostView {
     pub reply_count: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PostRepliedView {
+    pub uri: String,
+    pub cid: String,
+    pub author: Value,
+    pub title: String,
+    pub text: String,
+    pub reply_text: String,
+    pub reply_created: DateTime<Local>,
+    pub visited_count: String,
+    pub visited: DateTime<Local>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+    pub section_id: String,
+    pub section: String,
+    pub reply_count: String,
+}
+
 #[test]
 fn test() {
     let t_str = "2025-08-15T09:13:04+08:00";
