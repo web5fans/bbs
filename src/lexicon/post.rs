@@ -104,6 +104,7 @@ impl Post {
                 Self::SectionId,
                 Self::Title,
                 Self::Text,
+                Self::Updated,
                 Self::Created,
             ])
             .values([
@@ -113,6 +114,7 @@ impl Post {
                 section_id.into(),
                 title.into(),
                 text.into(),
+                created.into(),
                 created.into(),
             ])?
             .returning_col(Self::Uri)

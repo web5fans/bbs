@@ -115,7 +115,7 @@ pub(crate) async fn list(
                     .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
             )
         }))
-        .order_by(Post::Created, Order::Desc)
+        .order_by(Post::Updated, Order::Desc)
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 

@@ -1,10 +1,12 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, ExprTrait, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
+
+use crate::lexicon::post::Post;
 
 #[derive(Iden)]
 pub enum Reply {
@@ -101,8 +103,16 @@ impl Reply {
             .returning_col(Self::Uri)
             .build_sqlx(PostgresQueryBuilder);
         debug!("insert exec sql: {sql}");
-
         db.execute(query_with(&sql, values)).await?;
+
+        // update Post::Updated
+        let (sql, values) = sea_query::Query::update()
+            .table(Post::Table)
+            .values([(Post::Updated, (chrono::Local::now()).into())])
+            .and_where(Expr::col(Post::Uri).eq(parent))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("update Post::Updated: {sql}");
+        db.execute(query_with(&sql, values)).await.ok();
         Ok(())
     }
 }
