@@ -177,15 +177,3 @@ pub struct PostRepliedView {
     pub section: String,
     pub reply_count: String,
 }
-
-#[test]
-fn test() {
-    let t_str = "2025-08-15T09:13:04+08:00";
-    let t = chrono::DateTime::parse_from_rfc3339(t_str)
-        .map_err(|e| println!("{e}"))
-        .unwrap();
-
-    println!("t: {t:?}");
-
-    println!("a: {}", t.to_rfc3339());
-}
