@@ -119,3 +119,29 @@ pub async fn direct_writes(
     debug!("pds rsp body: {body_str}");
     Value::from_str(&body_str).map_err(|e| eyre!("decode pds response failed: {e}"))
 }
+
+pub async fn index_query(url: &str, did: &str, item: &str) -> Result<Value> {
+    let rsp = reqwest::Client::new()
+        .post(format!("{url}/xrpc/com.atproto.web5.indexQuery"))
+        .header("Content-Type", "application/json; charset=utf-8")
+        .timeout(Duration::from_secs(5))
+        .body(
+            json!({
+                "index": {
+                    "$type": format!("com.atproto.web5.indexQuery#{}", item),
+                    "did": did,
+                },
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .map_err(|e| eyre!("call pds failed: {e}"))?;
+    debug!("pds rsp: {rsp:?}");
+    let body_str = rsp
+        .text()
+        .await
+        .map_err(|e| eyre!("read pds response failed: {e}"))?;
+    debug!("pds rsp body: {body_str}");
+    Value::from_str(&body_str).map_err(|e| eyre!("decode pds response failed: {e}"))
+}

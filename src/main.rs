@@ -75,6 +75,7 @@ async fn main() -> Result<()> {
         .route("/api/post/replied", post(api::post::replied))
         .route("/api/reply/list", post(api::reply::list))
         .route("/api/repo/profile", get(api::repo::profile))
+        .route("/api/repo/login_info", get(api::repo::login_info))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
