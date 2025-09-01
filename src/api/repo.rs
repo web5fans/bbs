@@ -37,23 +37,29 @@ pub(crate) async fn login_info(
         .ok_or_eyre("repo not be null")?
         .to_string();
     let first = index_query(&state.pds, &repo, "firstItem")
-        .await?
+        .await
+        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+    let first = first
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or_eyre("index_query error: no result")?;
+        .ok_or(AppError::CallPdsFailed(first.to_string()))?;
     let second = index_query(&state.pds, &repo, "secondItem")
-        .await?
+        .await
+        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+    let second = second
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or_eyre("index_query error: no result")?;
+        .ok_or(AppError::CallPdsFailed(second.to_string()))?;
     let third = index_query(&state.pds, &repo, "thirdItem")
-        .await?
+        .await
+        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+    let third = third
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or_eyre("index_query error: no result")?;
+        .ok_or(AppError::CallPdsFailed(third.to_string()))?;
 
     Ok(ok(json!({
         "firstItem": first,

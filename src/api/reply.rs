@@ -45,7 +45,7 @@ pub(crate) async fn list(
 ) -> Result<impl IntoResponse, AppError> {
     query
         .validate()
-        .map_err(|e| AppError::Validate(e.to_string()))?;
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     let offset = query.per_page * (query.page - 1);
     let (sql, values) = sea_query::Query::select()
         .columns([

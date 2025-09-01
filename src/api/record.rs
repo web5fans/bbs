@@ -59,16 +59,17 @@ pub(crate) async fn create(
         &new_record.ckb_addr,
         &new_record.root,
     )
-    .await?;
+    .await
+    .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
     debug!("pds: {}", result);
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
-        .ok_or_eyre("create_record error: no uri")?;
+        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
     let cid = result
         .pointer("/results/0/cid")
         .and_then(|cid| cid.as_str())
-        .ok_or_eyre("create_record error: no cid")?;
+        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
     match record_type {
         NSID_POST => {
             Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
