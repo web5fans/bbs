@@ -142,6 +142,7 @@ pub struct PostRow {
     #[sqlx(rename = "name")]
     pub section: String,
     pub reply_count: i64,
+    pub like_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -158,6 +159,7 @@ pub struct PostView {
     pub section_id: String,
     pub section: String,
     pub reply_count: String,
+    pub like_count: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -176,4 +178,5 @@ pub struct PostRepliedView {
     pub section_id: String,
     pub section: String,
     pub reply_count: String,
+    pub like_count: String,
 }

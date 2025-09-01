@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 pub const NSID_POST: &str = "app.bbs.post";
 pub const NSID_REPLY: &str = "app.bbs.reply";
+pub const NSID_LIKE: &str = "app.bbs.like";
 pub const NSID_PROFILE: &str = "app.actor.profile";
 
 #[allow(dead_code)]

@@ -1,28 +1,24 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use sea_query::{ColumnDef, Expr, ExprTrait, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
-use crate::lexicon::post::Post;
-
 #[derive(Iden)]
-pub enum Reply {
+pub enum Like {
     Table,
     Uri,
     Cid,
     Repo,
     SectionId,
-    Root,
-    Parent,
-    Text,
+    To,
     Updated,
     Created,
 }
 
-impl Reply {
+impl Like {
     pub async fn init(db: &Pool<Postgres>) -> Result<()> {
         let sql = sea_query::Table::create()
             .table(Self::Table)
@@ -31,9 +27,7 @@ impl Reply {
             .col(ColumnDef::new(Self::Cid).string().not_null())
             .col(ColumnDef::new(Self::Repo).string().not_null())
             .col(ColumnDef::new(Self::SectionId).integer().not_null())
-            .col(ColumnDef::new(Self::Root).string().not_null())
-            .col(ColumnDef::new(Self::Parent).string().not_null())
-            .col(ColumnDef::new(Self::Text).string().not_null())
+            .col(ColumnDef::new(Self::To).string().not_null())
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -54,27 +48,19 @@ impl Reply {
     pub async fn insert(
         db: &Pool<Postgres>,
         repo: &str,
-        reply: &Value,
+        like: &Value,
         uri: &str,
         cid: &str,
     ) -> Result<()> {
-        let section_id = reply["section_id"]
+        let section_id = like["section_id"]
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let root = reply["root"]
+        let to = like["to"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in root")?;
-        let parent = reply["parent"]
-            .as_str()
-            .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in parent")?;
-        let text = reply["text"]
-            .as_str()
-            .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in text")?;
-        let created = reply["created"]
+            .ok_or_eyre("error in to")?;
+        let created = like["created"]
             .as_str()
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .ok_or_eyre("error in created")?;
@@ -85,9 +71,7 @@ impl Reply {
                 Self::Cid,
                 Self::Repo,
                 Self::SectionId,
-                Self::Root,
-                Self::Parent,
-                Self::Text,
+                Self::To,
                 Self::Created,
             ])
             .values([
@@ -95,50 +79,35 @@ impl Reply {
                 cid.into(),
                 repo.into(),
                 section_id.into(),
-                root.into(),
-                parent.into(),
-                text.into(),
+                to.into(),
                 created.into(),
             ])?
             .returning_col(Self::Uri)
             .build_sqlx(PostgresQueryBuilder);
         debug!("insert exec sql: {sql}");
         db.execute(query_with(&sql, values)).await?;
-
-        // update Post::Updated
-        let (sql, values) = sea_query::Query::update()
-            .table(Post::Table)
-            .values([(Post::Updated, (chrono::Local::now()).into())])
-            .and_where(Expr::col(Post::Uri).eq(parent))
-            .build_sqlx(PostgresQueryBuilder);
-        debug!("update Post::Updated: {sql}");
-        db.execute(query_with(&sql, values)).await.ok();
         Ok(())
     }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
-pub struct ReplyRow {
+#[allow(dead_code)]
+pub struct LikeRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
-    pub root: String,
-    pub parent: String,
-    pub text: String,
+    pub to: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
-    pub like_count: i64,
 }
 
 #[derive(Debug, Serialize)]
-pub struct ReplyView {
+#[allow(dead_code)]
+pub struct LikeView {
     pub uri: String,
     pub cid: String,
     pub author: Value,
-    pub root: String,
-    pub parent: String,
-    pub text: String,
+    pub to: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
-    pub like_count: String,
 }

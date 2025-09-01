@@ -16,6 +16,7 @@ use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 
+use crate::lexicon::like::Like;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
@@ -57,6 +58,7 @@ async fn main() -> Result<()> {
     Section::init(&db).await?;
     Post::init(&db).await?;
     Reply::init(&db).await?;
+    Like::init(&db).await?;
 
     let bbs = AppView {
         db,

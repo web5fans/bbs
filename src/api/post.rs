@@ -88,6 +88,7 @@ pub(crate) async fn list(
             (Section::Table, Section::Name),
         ])
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -123,7 +124,7 @@ pub(crate) async fn list(
 
     debug!("sql: {sql}");
 
-    let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
+    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
@@ -143,6 +144,7 @@ pub(crate) async fn list(
             section_id: row.section_id.to_string(),
             section: row.section,
             reply_count: row.reply_count.to_string(),
+            like_count: row.like_count.to_string(),
         });
     }
     let cursor = views.last().map(|r| r.created.to_rfc3339());
@@ -212,6 +214,7 @@ pub(crate) async fn top(
             (Section::Table, Section::Name),
         ])
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -225,7 +228,7 @@ pub(crate) async fn top(
 
     debug!("sql: {sql}");
 
-    let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
+    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
@@ -245,6 +248,7 @@ pub(crate) async fn top(
             section_id: row.section_id.to_string(),
             section: row.section,
             reply_count: row.reply_count.to_string(),
+            like_count: row.like_count.to_string(),
         });
     }
     Ok(ok(json!({
@@ -278,6 +282,7 @@ pub(crate) async fn detail(
             (Section::Table, Section::Name),
         ])
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -288,7 +293,7 @@ pub(crate) async fn detail(
 
     debug!("sql: {sql}");
 
-    let row: PostRow = query_as_with::<_, PostRow, _>(&sql, values.clone())
+    let row: PostRow = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
         .map_err(|e| {
@@ -321,6 +326,7 @@ pub(crate) async fn detail(
         section_id: row.section_id.to_string(),
         section: row.section,
         reply_count: row.reply_count.to_string(),
+        like_count: row.like_count.to_string(),
     };
 
     Ok(ok(view))
@@ -376,6 +382,7 @@ pub(crate) async fn replied(
             (Section::Table, Section::Name),
         ])
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -386,7 +393,7 @@ pub(crate) async fn replied(
 
     debug!("sql: {sql}");
 
-    let rows: Vec<PostRow> = query_as_with::<_, PostRow, _>(&sql, values.clone())
+    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
@@ -409,6 +416,7 @@ pub(crate) async fn replied(
             section_id: row.section_id.to_string(),
             section: row.section,
             reply_count: row.reply_count.to_string(),
+            like_count: row.like_count.to_string(),
         });
     }
     let result = if let Some(cursor) = cursor {

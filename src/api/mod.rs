@@ -7,7 +7,7 @@ use sqlx::query_as_with;
 use crate::{
     AppView,
     atproto::{NSID_PROFILE, get_record},
-    lexicon::{post::Post, reply::Reply},
+    lexicon::{like::Like, post::Post, reply::Reply},
 };
 
 pub(crate) mod post;
@@ -17,6 +17,7 @@ pub(crate) mod repo;
 pub(crate) mod section;
 
 pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
+    // Get post count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Post::Table, Post::Uri)).count())
         .from(Post::Table)
@@ -28,6 +29,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
+    // Get reply count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Reply::Table, Reply::Uri)).count())
         .from(Reply::Table)
@@ -38,6 +40,18 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
+    // Get like count
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Like::Table, Like::Uri)).count())
+        .from(Reply::Table)
+        .and_where(Expr::col(Like::To).eq(repo))
+        .build_sqlx(PostgresQueryBuilder);
+    debug!("like count exec sql: {sql}");
+    let like_count_row: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or((0,));
+    // Get profile
     let mut author = get_record(&state.pds, repo, NSID_PROFILE, "self")
         .await
         .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
@@ -47,5 +61,6 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     author["did"] = Value::String(repo.to_owned());
     author["post_count"] = Value::String(post_count_row.0.to_string());
     author["reply_count"] = Value::String(reply_count_row.0.to_string());
+    author["like_count"] = Value::String(like_count_row.0.to_string());
     author
 }

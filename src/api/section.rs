@@ -33,6 +33,7 @@ pub(crate) async fn list(
         .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
         .from(Section::Table)
         .and_where(
             if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
@@ -80,6 +81,7 @@ pub(crate) async fn list(
             visited_count: row.visited_count.unwrap_or_default().to_string(),
             post_count: row.post_count.unwrap_or_default().to_string(),
             reply_count: row.reply_count.unwrap_or_default().to_string(),
+            like_count: row.like_count.unwrap_or_default().to_string(),
         });
     }
 
@@ -107,6 +109,7 @@ pub(crate) async fn detail(
         .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"section_id\" = \"section\".\"id\") as reply_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
         .from(Section::Table)
         .and_where(Expr::col(Section::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
@@ -144,5 +147,6 @@ pub(crate) async fn detail(
         visited_count: row.visited_count.unwrap_or_default().to_string(),
         post_count: row.post_count.unwrap_or_default().to_string(),
         reply_count: row.reply_count.unwrap_or_default().to_string(),
+        like_count: row.like_count.unwrap_or_default().to_string(),
     }))
 }

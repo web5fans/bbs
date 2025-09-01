@@ -58,6 +58,7 @@ pub(crate) async fn list(
             (Reply::Table, Reply::Updated),
             (Reply::Table, Reply::Created),
         ])
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"reply\".\"uri\") as like_count"))
         .from(Reply::Table)
         .and_where(Expr::col((Reply::Table, Reply::Root)).eq(&query.root))
         .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(&query.parent))
@@ -84,6 +85,7 @@ pub(crate) async fn list(
             text: row.text,
             updated: row.updated,
             created: row.created,
+            like_count: row.like_count.to_string(),
         });
     }
 

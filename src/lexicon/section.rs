@@ -96,6 +96,7 @@ pub struct SectionRowSample {
     pub visited_count: Option<i64>,
     pub post_count: Option<i64>,
     pub reply_count: Option<i64>,
+    pub like_count: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -108,4 +109,5 @@ pub struct SectionView {
     pub visited_count: String,
     pub post_count: String,
     pub reply_count: String,
+    pub like_count: String,
 }
