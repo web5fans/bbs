@@ -34,11 +34,13 @@ struct AppView {
 pub struct Args {
     #[clap(short, long, default_value = "info")]
     log_filter: String,
+    #[clap(long, default_value = "8080")]
+    port: u16,
     #[clap(short, long)]
     db_url: String,
     #[clap(short, long)]
     pds: String,
-    #[clap(short, long)]
+    #[clap(short, long, default_value = "")]
     whitelist: String,
 }
 
@@ -81,7 +83,7 @@ async fn main() -> Result<()> {
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
-    common_x::restful::http_serve(8080, router)
+    common_x::restful::http_serve(args.port, router)
         .await
         .map_err(|e| eyre!("{e}"))
 }
