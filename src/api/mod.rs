@@ -29,6 +29,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
+
     // Get reply count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Reply::Table, Reply::Uri)).count())
@@ -40,6 +41,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
+
     // Get like count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Like::Table, Like::Uri)).count())
@@ -51,6 +53,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
+
     // Get profile
     let mut author = get_record(&state.pds, repo, NSID_PROFILE, "self")
         .await
