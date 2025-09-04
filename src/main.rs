@@ -16,6 +16,7 @@ use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 
+use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
@@ -59,6 +60,7 @@ async fn main() -> Result<()> {
     Status::init(&db).await?;
     Section::init(&db).await?;
     Post::init(&db).await?;
+    Comment::init(&db).await?;
     Reply::init(&db).await?;
     Like::init(&db).await?;
 
@@ -77,6 +79,7 @@ async fn main() -> Result<()> {
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
         .route("/api/post/replied", post(api::post::replied))
+        .route("/api/comment/list", post(api::comment::list))
         .route("/api/reply/list", post(api::reply::list))
         .route("/api/repo/profile", get(api::repo::profile))
         .route("/api/repo/login_info", get(api::repo::login_info))

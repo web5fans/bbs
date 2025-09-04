@@ -10,6 +10,7 @@ use crate::{
     lexicon::{like::Like, post::Post, reply::Reply},
 };
 
+pub(crate) mod comment;
 pub(crate) mod post;
 pub(crate) mod record;
 pub(crate) mod reply;

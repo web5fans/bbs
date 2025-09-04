@@ -12,9 +12,9 @@ use serde_json::{Value, json};
 
 use crate::{
     AppView,
-    atproto::{NSID_LIKE, NSID_POST, NSID_REPLY, direct_writes},
+    atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_REPLY, direct_writes},
     error::AppError,
-    lexicon::{like::Like, post::Post, reply::Reply},
+    lexicon::{comment::Comment, like::Like, post::Post, reply::Reply},
 };
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -73,6 +73,9 @@ pub(crate) async fn create(
     match record_type {
         NSID_POST => {
             Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+        }
+        NSID_COMMENT => {
+            Comment::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
         }
         NSID_REPLY => {
             Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
