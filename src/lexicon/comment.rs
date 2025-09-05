@@ -15,7 +15,7 @@ pub enum Comment {
     Cid,
     Repo,
     SectionId,
-    To,
+    Post,
     Text,
     Updated,
     Created,
@@ -30,7 +30,7 @@ impl Comment {
             .col(ColumnDef::new(Self::Cid).string().not_null())
             .col(ColumnDef::new(Self::Repo).string().not_null())
             .col(ColumnDef::new(Self::SectionId).integer().not_null())
-            .col(ColumnDef::new(Self::To).string().not_null())
+            .col(ColumnDef::new(Self::Post).string().not_null())
             .col(ColumnDef::new(Self::Text).string().not_null())
             .col(
                 ColumnDef::new(Self::Updated)
@@ -60,10 +60,10 @@ impl Comment {
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let to = comment["to"]
+        let post = comment["post"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in to")?;
+            .ok_or_eyre("error in post")?;
         let text = comment["text"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
@@ -79,7 +79,7 @@ impl Comment {
                 Self::Cid,
                 Self::Repo,
                 Self::SectionId,
-                Self::To,
+                Self::Post,
                 Self::Text,
                 Self::Created,
             ])
@@ -88,7 +88,7 @@ impl Comment {
                 cid.into(),
                 repo.into(),
                 section_id.into(),
-                to.into(),
+                post.into(),
                 text.into(),
                 created.into(),
             ])?
@@ -101,7 +101,7 @@ impl Comment {
         let (sql, values) = sea_query::Query::update()
             .table(Post::Table)
             .values([(Post::Updated, (chrono::Local::now()).into())])
-            .and_where(Expr::col(Post::Uri).eq(to))
+            .and_where(Expr::col(Post::Uri).eq(post))
             .build_sqlx(PostgresQueryBuilder);
         debug!("update Post::Updated: {sql}");
         db.execute(query_with(&sql, values)).await.ok();
@@ -114,7 +114,7 @@ pub struct CommentRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
-    pub to: String,
+    pub post: String,
     pub text: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
@@ -126,9 +126,10 @@ pub struct CommentView {
     pub uri: String,
     pub cid: String,
     pub author: Value,
-    pub to: String,
+    pub post: String,
     pub text: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,
+    pub replies: Value,
 }

@@ -12,7 +12,7 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::build_author,
+    api::{build_author, reply::ReplyQuery},
     error::AppError,
     lexicon::comment::{Comment, CommentRow, CommentView},
 };
@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug, Validate, Deserialize)]
 #[serde(default)]
 pub(crate) struct CommentQuery {
-    pub to: String,
+    pub post: String,
     #[validate(range(min = 1))]
     pub page: u64,
     #[validate(range(min = 1))]
@@ -30,7 +30,7 @@ pub(crate) struct CommentQuery {
 impl Default for CommentQuery {
     fn default() -> Self {
         Self {
-            to: String::new(),
+            post: String::new(),
             page: 1,
             per_page: 20,
         }
@@ -50,14 +50,14 @@ pub(crate) async fn list(
             (Comment::Table, Comment::Uri),
             (Comment::Table, Comment::Cid),
             (Comment::Table, Comment::Repo),
-            (Comment::Table, Comment::To),
+            (Comment::Table, Comment::Post),
             (Comment::Table, Comment::Text),
             (Comment::Table, Comment::Updated),
             (Comment::Table, Comment::Created),
         ])
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"post\" = \"comment\".\"uri\") as like_count"))
         .from(Comment::Table)
-        .and_where(Expr::col((Comment::Table, Comment::To)).eq(&query.to))
+        .and_where(Expr::col((Comment::Table, Comment::Post)).eq(&query.post))
         .order_by(Comment::Created, Order::Asc)
         .offset(offset)
         .limit(query.per_page)
@@ -72,22 +72,35 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
+        let replies = crate::api::reply::list_reply(
+            &state,
+            ReplyQuery {
+                post: None,
+                comment: row.uri.to_string(),
+                to: None,
+                cursor: None,
+                limit: 2,
+            },
+        )
+        .await
+        .unwrap_or(json!({}));
         views.push(CommentView {
             uri: row.uri,
             cid: row.cid,
             author: build_author(&state, &row.repo).await,
-            to: row.to,
+            post: row.post,
             text: row.text,
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),
+            replies,
         });
     }
 
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Comment::Table, Comment::Uri)).count())
         .from(Comment::Table)
-        .and_where(Expr::col((Comment::Table, Comment::To)).eq(query.to))
+        .and_where(Expr::col((Comment::Table, Comment::Post)).eq(query.post))
         .build_sqlx(PostgresQueryBuilder);
 
     debug!("sql: {sql}");

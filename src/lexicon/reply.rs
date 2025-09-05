@@ -15,8 +15,9 @@ pub enum Reply {
     Cid,
     Repo,
     SectionId,
-    Root,
-    Parent,
+    Post,
+    Comment,
+    To,
     Text,
     Updated,
     Created,
@@ -31,8 +32,14 @@ impl Reply {
             .col(ColumnDef::new(Self::Cid).string().not_null())
             .col(ColumnDef::new(Self::Repo).string().not_null())
             .col(ColumnDef::new(Self::SectionId).integer().not_null())
-            .col(ColumnDef::new(Self::Root).string().not_null())
-            .col(ColumnDef::new(Self::Parent).string().not_null())
+            .col(ColumnDef::new(Self::Post).string().not_null())
+            .col(ColumnDef::new(Self::Comment).string().not_null())
+            .col(
+                ColumnDef::new(Self::To)
+                    .string()
+                    .not_null()
+                    .default("".to_string()),
+            )
             .col(ColumnDef::new(Self::Text).string().not_null())
             .col(
                 ColumnDef::new(Self::Updated)
@@ -62,14 +69,18 @@ impl Reply {
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let root = reply["root"]
+        let post = reply["post"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in root")?;
-        let parent = reply["parent"]
+            .ok_or_eyre("error in post")?;
+        let comment = reply["comment"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
-            .ok_or_eyre("error in parent")?;
+            .ok_or_eyre("error in comment")?;
+        let to = reply["to"]
+            .as_str()
+            .map(|s| s.trim_matches('\"'))
+            .unwrap_or_default();
         let text = reply["text"]
             .as_str()
             .map(|s| s.trim_matches('\"'))
@@ -85,8 +96,9 @@ impl Reply {
                 Self::Cid,
                 Self::Repo,
                 Self::SectionId,
-                Self::Root,
-                Self::Parent,
+                Self::Post,
+                Self::Comment,
+                Self::To,
                 Self::Text,
                 Self::Created,
             ])
@@ -95,8 +107,9 @@ impl Reply {
                 cid.into(),
                 repo.into(),
                 section_id.into(),
-                root.into(),
-                parent.into(),
+                post.into(),
+                comment.into(),
+                to.into(),
                 text.into(),
                 created.into(),
             ])?
@@ -109,7 +122,7 @@ impl Reply {
         let (sql, values) = sea_query::Query::update()
             .table(Post::Table)
             .values([(Post::Updated, (chrono::Local::now()).into())])
-            .and_where(Expr::col(Post::Uri).eq(parent))
+            .and_where(Expr::col(Post::Uri).eq(comment))
             .build_sqlx(PostgresQueryBuilder);
         debug!("update Post::Updated: {sql}");
         db.execute(query_with(&sql, values)).await.ok();
@@ -122,8 +135,9 @@ pub struct ReplyRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
-    pub root: String,
-    pub parent: String,
+    pub post: String,
+    pub comment: String,
+    pub to: String,
     pub text: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
@@ -135,8 +149,9 @@ pub struct ReplyView {
     pub uri: String,
     pub cid: String,
     pub author: Value,
-    pub root: String,
-    pub parent: String,
+    pub post: String,
+    pub comment: String,
+    pub to: Value,
     pub text: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,

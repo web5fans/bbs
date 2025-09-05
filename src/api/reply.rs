@@ -6,7 +6,7 @@ use common_x::restful::{
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use sqlx::query_as_with;
 use validator::Validate;
 
@@ -20,21 +20,21 @@ use crate::{
 #[derive(Debug, Validate, Deserialize)]
 #[serde(default)]
 pub(crate) struct ReplyQuery {
-    pub root: String,
-    pub parent: String,
-    #[validate(range(min = 1))]
-    pub page: u64,
-    #[validate(range(min = 1))]
-    pub per_page: u64,
+    pub post: Option<String>,
+    pub comment: String,
+    pub to: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: u64,
 }
 
 impl Default for ReplyQuery {
     fn default() -> Self {
         Self {
-            root: String::new(),
-            parent: String::new(),
-            page: 1,
-            per_page: 20,
+            post: None,
+            comment: String::new(),
+            to: None,
+            cursor: Default::default(),
+            limit: 2,
         }
     }
 }
@@ -43,28 +43,35 @@ pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<ReplyQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    let result = list_reply(&state, query).await?;
+    Ok(ok(result))
+}
+
+pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Value, AppError> {
     query
         .validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
-    let offset = query.per_page * (query.page - 1);
     let (sql, values) = sea_query::Query::select()
         .columns([
             (Reply::Table, Reply::Uri),
             (Reply::Table, Reply::Cid),
             (Reply::Table, Reply::Repo),
-            (Reply::Table, Reply::Root),
-            (Reply::Table, Reply::Parent),
+            (Reply::Table, Reply::Post),
+            (Reply::Table, Reply::Comment),
+            (Reply::Table, Reply::To),
             (Reply::Table, Reply::Text),
             (Reply::Table, Reply::Updated),
             (Reply::Table, Reply::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"reply\".\"uri\") as like_count"))
         .from(Reply::Table)
-        .and_where(Expr::col((Reply::Table, Reply::Root)).eq(&query.root))
-        .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(&query.parent))
+        .and_where(Expr::col((Reply::Table, Reply::Comment)).eq(&query.comment))
+        .and_where_option(query.post.map(|p| Expr::col((Reply::Table, Reply::Post)).eq(&p)))
+        .and_where_option(
+            query.to.map(|t| Expr::col((Reply::Table, Reply::To)).eq(&t)),
+        )
         .order_by(Reply::Created, Order::Asc)
-        .offset(offset)
-        .limit(query.per_page)
+        .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
     debug!("sql: {sql}");
@@ -79,9 +86,10 @@ pub(crate) async fn list(
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,
-            author: build_author(&state, &row.repo).await,
-            root: row.root,
-            parent: row.parent,
+            author: build_author(state, &row.repo).await,
+            post: row.post,
+            comment: row.comment,
+            to: build_author(state, &row.to).await,
             text: row.text,
             updated: row.updated,
             created: row.created,
@@ -89,24 +97,17 @@ pub(crate) async fn list(
         });
     }
 
-    let (sql, values) = sea_query::Query::select()
-        .expr(Expr::col((Reply::Table, Reply::Uri)).count())
-        .from(Reply::Table)
-        .and_where(Expr::col((Reply::Table, Reply::Root)).eq(query.root))
-        .and_where(Expr::col((Reply::Table, Reply::Parent)).eq(query.parent))
-        .build_sqlx(PostgresQueryBuilder);
+    let cursor = views.last().map(|r| r.created.to_rfc3339());
+    let result = if let Some(cursor) = cursor {
+        json!({
+            "cursor": cursor,
+            "replies": views
+        })
+    } else {
+        json!({
+            "replies": views
+        })
+    };
 
-    debug!("sql: {sql}");
-
-    let total: (i64,) = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
-
-    Ok(ok(json!({
-        "replies": views,
-        "page": query.page,
-        "per_page": query.per_page,
-        "total":  total.0
-    })))
+    Ok(result)
 }

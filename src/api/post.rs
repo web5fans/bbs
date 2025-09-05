@@ -338,7 +338,7 @@ pub(crate) async fn replied(
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
         .columns([
-            (Reply::Table, Reply::Root),
+            (Reply::Table, Reply::Post),
             (Reply::Table, Reply::Text),
             (Reply::Table, Reply::Created),
         ])
