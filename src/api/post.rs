@@ -82,9 +82,11 @@ pub(crate) async fn list(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .and_where_option(query.viewer.map(|viewer| {
+        .expr(if let Some(viewer) = query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        }))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -213,9 +215,11 @@ pub(crate) async fn top(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .and_where_option(query.viewer.map(|viewer| {
+        .expr(if let Some(viewer) = query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        }))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -286,9 +290,11 @@ pub(crate) async fn detail(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .and_where_option(viewer.map(|viewer| {
+        .expr(if let Some(viewer) = viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        }))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -390,9 +396,11 @@ pub(crate) async fn commented(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .and_where_option(query.viewer.map(|viewer| {
+        .expr(if let Some(viewer) = query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        }))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
         .from(Post::Table)
         .left_join(
             Section::Table,

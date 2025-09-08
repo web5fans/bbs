@@ -58,9 +58,11 @@ pub(crate) async fn list(
             (Comment::Table, Comment::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
-        .and_where_option(query.viewer.clone().map(|viewer| {
+        .expr(if let Some(viewer) = &query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"comment\".\"uri\" ) > 0) as liked"))
-        }))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
         .from(Comment::Table)
         .and_where(Expr::col((Comment::Table, Comment::Post)).eq(&query.post))
         .order_by(Comment::Created, Order::Asc)
