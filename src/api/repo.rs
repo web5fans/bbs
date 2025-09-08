@@ -20,7 +20,7 @@ pub(crate) async fn profile(
         .ok_or_eyre("repo not be null")?
         .to_string();
     let mut author = build_author(&state, &repo).await;
-    if state.whitelist.contains(&repo) {
+    if state.whitelist.is_empty() || state.whitelist.contains(&repo) {
         author["highlight"] = Value::String("beta".to_owned());
     }
 

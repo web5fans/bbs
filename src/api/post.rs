@@ -12,7 +12,7 @@ use common_x::restful::{
 };
 use sea_query::{BinOper, Expr, ExprTrait, Func, IntoColumnRef, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::{Executor, query_as_with, query_with};
 use validator::Validate;
@@ -27,15 +27,6 @@ use crate::{
         section::Section,
     },
 };
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct NewPost {
-    repo: String,
-    rkey: String,
-    record: Value,
-    signing_key: String,
-    root: Value,
-}
 
 #[derive(Debug, Validate, Deserialize)]
 #[serde(default)]
@@ -87,7 +78,7 @@ pub(crate) async fn list(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -213,7 +204,7 @@ pub(crate) async fn top(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -281,7 +272,7 @@ pub(crate) async fn detail(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -381,7 +372,7 @@ pub(crate) async fn commented(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(

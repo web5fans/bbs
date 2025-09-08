@@ -67,7 +67,17 @@ async fn main() -> Result<()> {
     let bbs = AppView {
         db,
         pds: args.pds.clone(),
-        whitelist: args.whitelist.split(',').map(|s| s.to_string()).collect(),
+        whitelist: args
+            .whitelist
+            .split(',')
+            .filter_map(|s| {
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.to_owned())
+                }
+            })
+            .collect(),
     };
 
     // api

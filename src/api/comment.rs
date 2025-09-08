@@ -55,7 +55,7 @@ pub(crate) async fn list(
             (Comment::Table, Comment::Updated),
             (Comment::Table, Comment::Created),
         ])
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"post\" = \"comment\".\"uri\") as like_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
         .from(Comment::Table)
         .and_where(Expr::col((Comment::Table, Comment::Post)).eq(&query.post))
         .order_by(Comment::Created, Order::Asc)
