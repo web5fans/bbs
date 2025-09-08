@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
@@ -114,10 +114,22 @@ impl Post {
                 section_id.into(),
                 title.into(),
                 text.into(),
-                created.into(),
+                Expr::current_timestamp(),
                 created.into(),
             ])?
             .returning_col(Self::Uri)
+            .on_conflict(
+                OnConflict::column(Self::Uri)
+                    .update_columns([
+                        Self::Cid,
+                        Self::Repo,
+                        Self::SectionId,
+                        Self::Title,
+                        Self::Text,
+                        Self::Updated,
+                    ])
+                    .to_owned(),
+            )
             .build_sqlx(PostgresQueryBuilder);
         debug!("insert exec sql: {sql}");
 
