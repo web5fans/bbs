@@ -22,8 +22,8 @@ use crate::{
     api::build_author,
     error::AppError,
     lexicon::{
+        comment::Comment,
         post::{Post, PostRepliedView, PostRow, PostView},
-        reply::Reply,
         section::Section,
     },
 };
@@ -87,7 +87,7 @@ pub(crate) async fn list(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -143,7 +143,7 @@ pub(crate) async fn list(
             created: row.created,
             section_id: row.section_id.to_string(),
             section: row.section,
-            reply_count: row.reply_count.to_string(),
+            comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
         });
     }
@@ -213,7 +213,7 @@ pub(crate) async fn top(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -247,7 +247,7 @@ pub(crate) async fn top(
             created: row.created,
             section_id: row.section_id.to_string(),
             section: row.section,
-            reply_count: row.reply_count.to_string(),
+            comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
         });
     }
@@ -281,7 +281,7 @@ pub(crate) async fn detail(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -325,33 +325,33 @@ pub(crate) async fn detail(
         created: row.created,
         section_id: row.section_id.to_string(),
         section: row.section,
-        reply_count: row.reply_count.to_string(),
+        comment_count: row.comment_count.to_string(),
         like_count: row.like_count.to_string(),
     };
 
     Ok(ok(view))
 }
 
-pub(crate) async fn replied(
+pub(crate) async fn commented(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = sea_query::Query::select()
         .columns([
-            (Reply::Table, Reply::Post),
-            (Reply::Table, Reply::Text),
-            (Reply::Table, Reply::Created),
+            (Comment::Table, Comment::Post),
+            (Comment::Table, Comment::Text),
+            (Comment::Table, Comment::Created),
         ])
-        .from(Reply::Table)
-        .and_where(Expr::col((Reply::Table, Reply::Repo)).eq(query.repo))
+        .from(Comment::Table)
+        .and_where(Expr::col((Comment::Table, Comment::Repo)).eq(query.repo))
         .and_where_option(query.cursor.map(|cursor| {
-            Expr::col((Reply::Table, Reply::Created)).binary(
+            Expr::col((Comment::Table, Comment::Created)).binary(
                 BinOper::SmallerThan,
                 Func::cust(ToTimestamp)
                     .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
             )
         }))
-        .order_by(Reply::Created, Order::Desc)
+        .order_by(Comment::Created, Order::Desc)
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
@@ -381,7 +381,7 @@ pub(crate) async fn replied(
             (Section::Table, Section::Id),
             (Section::Table, Section::Name),
         ])
-        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"root\" = \"post\".\"uri\") as reply_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"root\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
         .from(Post::Table)
         .left_join(
@@ -400,10 +400,10 @@ pub(crate) async fn replied(
 
     let mut views = vec![];
     for row in rows {
-        let reply = roots.get(&row.uri).cloned().unwrap_or_default();
+        let comment = roots.get(&row.uri).cloned().unwrap_or_default();
         views.push(PostRepliedView {
-            reply_text: reply.0,
-            reply_created: reply.1,
+            comment_text: comment.0,
+            comment_created: comment.1,
             uri: row.uri,
             cid: row.cid,
             author: build_author(&state, &row.repo).await,
@@ -415,7 +415,7 @@ pub(crate) async fn replied(
             created: row.created,
             section_id: row.section_id.to_string(),
             section: row.section,
-            reply_count: row.reply_count.to_string(),
+            comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
         });
     }

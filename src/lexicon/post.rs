@@ -141,7 +141,7 @@ pub struct PostRow {
     pub section_id: i32,
     #[sqlx(rename = "name")]
     pub section: String,
-    pub reply_count: i64,
+    pub comment_count: i64,
     pub like_count: i64,
 }
 
@@ -158,7 +158,7 @@ pub struct PostView {
     pub created: DateTime<Local>,
     pub section_id: String,
     pub section: String,
-    pub reply_count: String,
+    pub comment_count: String,
     pub like_count: String,
 }
 
@@ -169,14 +169,14 @@ pub struct PostRepliedView {
     pub author: Value,
     pub title: String,
     pub text: String,
-    pub reply_text: String,
-    pub reply_created: DateTime<Local>,
+    pub comment_text: String,
+    pub comment_created: DateTime<Local>,
     pub visited_count: String,
     pub visited: DateTime<Local>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub section_id: String,
     pub section: String,
-    pub reply_count: String,
+    pub comment_count: String,
     pub like_count: String,
 }

@@ -111,7 +111,7 @@ pub(crate) async fn list(
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
     Ok(ok(json!({
-        "replies": views,
+        "comments": views,
         "page": query.page,
         "per_page": query.per_page,
         "total":  total.0

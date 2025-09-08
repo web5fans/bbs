@@ -95,7 +95,7 @@ pub struct SectionRowSample {
     pub administrators: Option<Vec<String>>,
     pub visited_count: Option<i64>,
     pub post_count: Option<i64>,
-    pub reply_count: Option<i64>,
+    pub comment_count: Option<i64>,
     pub like_count: Option<i64>,
 }
 
@@ -108,6 +108,6 @@ pub struct SectionView {
     pub administrators: Value,
     pub visited_count: String,
     pub post_count: String,
-    pub reply_count: String,
+    pub comment_count: String,
     pub like_count: String,
 }

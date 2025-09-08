@@ -31,14 +31,14 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .await
         .unwrap_or((0,));
 
-    // Get reply count
+    // Get comment count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Reply::Table, Reply::Uri)).count())
         .from(Reply::Table)
         .and_where(Expr::col(Reply::Repo).eq(repo))
         .build_sqlx(PostgresQueryBuilder);
-    debug!("reply count exec sql: {sql}");
-    let reply_count_row: (i64,) = query_as_with(&sql, values.clone())
+    debug!("comment count exec sql: {sql}");
+    let comment_count_row: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
         .unwrap_or((0,));
@@ -64,7 +64,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         }));
     author["did"] = Value::String(repo.to_owned());
     author["post_count"] = Value::String(post_count_row.0.to_string());
-    author["reply_count"] = Value::String(reply_count_row.0.to_string());
+    author["comment_count"] = Value::String(comment_count_row.0.to_string());
     author["like_count"] = Value::String(like_count_row.0.to_string());
     author
 }
