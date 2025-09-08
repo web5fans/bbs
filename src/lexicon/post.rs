@@ -143,6 +143,7 @@ pub struct PostRow {
     pub section: String,
     pub comment_count: i64,
     pub like_count: i64,
+    pub liked: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -160,6 +161,7 @@ pub struct PostView {
     pub section: String,
     pub comment_count: String,
     pub like_count: String,
+    pub liked: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -179,4 +181,5 @@ pub struct PostRepliedView {
     pub section: String,
     pub comment_count: String,
     pub like_count: String,
+    pub liked: bool,
 }

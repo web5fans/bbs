@@ -36,6 +36,7 @@ pub(crate) struct PostQuery {
     pub limit: u64,
     pub q: Option<String>,
     pub repo: Option<String>,
+    pub viewer: Option<String>,
 }
 
 impl Default for PostQuery {
@@ -46,6 +47,7 @@ impl Default for PostQuery {
             limit: 20,
             q: Default::default(),
             repo: Default::default(),
+            viewer: Default::default(),
         }
     }
 }
@@ -80,6 +82,9 @@ pub(crate) async fn list(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .and_where_option(query.viewer.map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -136,6 +141,7 @@ pub(crate) async fn list(
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
+            liked: row.liked,
         });
     }
     let cursor = views.last().map(|r| r.created.to_rfc3339());
@@ -156,6 +162,7 @@ pub(crate) async fn list(
 #[serde(default)]
 pub(crate) struct TopQuery {
     pub section_id: String,
+    pub viewer: Option<String>,
 }
 
 pub(crate) async fn top(
@@ -206,6 +213,9 @@ pub(crate) async fn top(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .and_where_option(query.viewer.map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -240,6 +250,7 @@ pub(crate) async fn top(
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
+            liked: row.liked,
         });
     }
     Ok(ok(json!({
@@ -255,6 +266,7 @@ pub(crate) async fn detail(
         .get("uri")
         .and_then(|u| u.as_str())
         .ok_or_eyre("uri not be null")?;
+    let viewer = query.get("viewer").and_then(|u| u.as_str());
 
     let (sql, values) = sea_query::Query::select()
         .columns([
@@ -274,6 +286,9 @@ pub(crate) async fn detail(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .and_where_option(viewer.map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -318,6 +333,7 @@ pub(crate) async fn detail(
         section: row.section,
         comment_count: row.comment_count.to_string(),
         like_count: row.like_count.to_string(),
+        liked: row.liked,
     };
 
     Ok(ok(view))
@@ -374,6 +390,9 @@ pub(crate) async fn commented(
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .and_where_option(query.viewer.map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Post::Table)
         .left_join(
             Section::Table,
@@ -408,6 +427,7 @@ pub(crate) async fn commented(
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
+            liked: row.liked,
         });
     }
     let result = if let Some(cursor) = cursor {

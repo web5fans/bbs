@@ -25,6 +25,7 @@ pub(crate) struct ReplyQuery {
     pub to: Option<String>,
     pub cursor: Option<String>,
     pub limit: u64,
+    pub viewer: Option<String>,
 }
 
 impl Default for ReplyQuery {
@@ -35,6 +36,7 @@ impl Default for ReplyQuery {
             to: None,
             cursor: Default::default(),
             limit: 2,
+            viewer: None,
         }
     }
 }
@@ -64,6 +66,9 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             (Reply::Table, Reply::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"reply\".\"uri\") as like_count"))
+        .and_where_option(query.viewer.map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"reply\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Reply::Table)
         .and_where(Expr::col((Reply::Table, Reply::Comment)).eq(&query.comment))
         .and_where_option(query.post.map(|p| Expr::col((Reply::Table, Reply::Post)).eq(&p)))
@@ -94,6 +99,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),
+            liked: row.liked,
         });
     }
 

@@ -25,6 +25,7 @@ pub(crate) struct CommentQuery {
     pub page: u64,
     #[validate(range(min = 1))]
     pub per_page: u64,
+    pub viewer: Option<String>,
 }
 
 impl Default for CommentQuery {
@@ -33,6 +34,7 @@ impl Default for CommentQuery {
             post: String::new(),
             page: 1,
             per_page: 20,
+            viewer: None,
         }
     }
 }
@@ -56,6 +58,9 @@ pub(crate) async fn list(
             (Comment::Table, Comment::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
+        .and_where_option(query.viewer.clone().map(|viewer| {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"comment\".\"uri\" ) > 0) as liked"))
+        }))
         .from(Comment::Table)
         .and_where(Expr::col((Comment::Table, Comment::Post)).eq(&query.post))
         .order_by(Comment::Created, Order::Asc)
@@ -80,6 +85,7 @@ pub(crate) async fn list(
                 to: None,
                 cursor: None,
                 limit: 2,
+                viewer: query.viewer.clone(),
             },
         )
         .await
@@ -94,6 +100,7 @@ pub(crate) async fn list(
             created: row.created,
             like_count: row.like_count.to_string(),
             replies,
+            liked: row.liked,
         });
     }
 

@@ -142,6 +142,7 @@ pub struct ReplyRow {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
+    pub liked: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -156,4 +157,5 @@ pub struct ReplyView {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,
+    pub liked: bool,
 }
