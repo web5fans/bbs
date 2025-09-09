@@ -50,7 +50,7 @@ pub(crate) async fn list(
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<SectionRowSample> = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_all(&state.db)
@@ -114,7 +114,7 @@ pub(crate) async fn detail(
         .and_where(Expr::col(Section::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let row: SectionRowSample = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_one(&state.db)

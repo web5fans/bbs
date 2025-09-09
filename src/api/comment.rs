@@ -70,7 +70,7 @@ pub(crate) async fn list(
         .limit(query.per_page)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<CommentRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
@@ -112,7 +112,7 @@ pub(crate) async fn list(
         .and_where(Expr::col((Comment::Table, Comment::Post)).eq(query.post))
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let total: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)

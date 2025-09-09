@@ -18,6 +18,14 @@ pub(crate) mod reply;
 pub(crate) mod repo;
 pub(crate) mod section;
 
+pub(crate) struct ToTimestamp;
+
+impl sea_query::Iden for ToTimestamp {
+    fn unquoted(&self) -> &str {
+        "to_timestamp"
+    }
+}
+
 pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     // Get post count
     let (sql, values) = sea_query::Query::select()

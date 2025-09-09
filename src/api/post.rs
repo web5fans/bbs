@@ -19,7 +19,7 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::build_author,
+    api::{ToTimestamp, build_author},
     error::AppError,
     lexicon::{
         comment::Comment,
@@ -49,14 +49,6 @@ impl Default for PostQuery {
             repo: Default::default(),
             viewer: Default::default(),
         }
-    }
-}
-
-struct ToTimestamp;
-
-impl sea_query::Iden for ToTimestamp {
-    fn unquoted(&self) -> &str {
-        "to_timestamp"
     }
 }
 
@@ -92,11 +84,6 @@ pub(crate) async fn list(
             Section::Table,
             Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
         )
-        .and_where_option(query.q.map(|q| {
-            (Post::Table, Post::Text)
-                .into_column_ref()
-                .like(format!("%{q}%"))
-        }))
         .and_where_option(
             query
                 .repo
@@ -109,18 +96,23 @@ pub(crate) async fn list(
                 Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0)
             },
         )
-        .and_where_option(query.cursor.map(|cursor| {
-            Expr::col((Post::Table, Post::Created)).binary(
+        .and_where_option(query.cursor.and_then(|cursor| cursor.parse::<i64>().ok()).map(|cursor| {
+            Expr::col((Post::Table, Post::Updated)).binary(
                 BinOper::SmallerThan,
                 Func::cust(ToTimestamp)
-                    .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
+                    .args([Expr::val(cursor)]),
             )
+        }))
+        .and_where_option(query.q.map(|q| {
+            (Post::Table, Post::Text)
+                .into_column_ref()
+                .like(format!("%{q}%"))
         }))
         .order_by(Post::Updated, Order::Desc)
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
@@ -146,10 +138,10 @@ pub(crate) async fn list(
             liked: row.liked,
         });
     }
-    let cursor = views.last().map(|r| r.created.to_rfc3339());
+    let cursor = views.last().map(|r| r.updated.timestamp());
     let result = if let Some(cursor) = cursor {
         json!({
-            "cursor": cursor,
+            "cursor": cursor.to_string(),
             "posts": views
         })
     } else {
@@ -231,7 +223,7 @@ pub(crate) async fn top(
         .limit(10)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
@@ -303,7 +295,7 @@ pub(crate) async fn detail(
         .and_where(Expr::col(Post::Uri).eq(uri))
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let row: PostRow = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
@@ -357,13 +349,17 @@ pub(crate) async fn commented(
         ])
         .from(Comment::Table)
         .and_where(Expr::col((Comment::Table, Comment::Repo)).eq(query.repo))
-        .and_where_option(query.cursor.map(|cursor| {
-            Expr::col((Comment::Table, Comment::Created)).binary(
-                BinOper::SmallerThan,
-                Func::cust(ToTimestamp)
-                    .args([Expr::val(cursor), Expr::val("YYYY-MM-DDTHH24:MI:SS")]),
-            )
-        }))
+        .and_where_option(
+            query
+                .cursor
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Comment::Table, Comment::Created)).binary(
+                        BinOper::SmallerThan,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
         .order_by(Comment::Created, Order::Desc)
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
@@ -372,7 +368,7 @@ pub(crate) async fn commented(
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
-    let cursor = rows.last().map(|r| r.2.to_rfc3339());
+    let cursor = rows.last().map(|r| r.2.timestamp());
     let roots = rows
         .into_iter()
         .map(|r| (r.0, (r.1, r.2)))
@@ -409,7 +405,7 @@ pub(crate) async fn commented(
         .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql}");
+    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
@@ -440,7 +436,7 @@ pub(crate) async fn commented(
     }
     let result = if let Some(cursor) = cursor {
         json!({
-            "cursor": cursor,
+            "cursor": cursor.to_string(),
             "posts": views
         })
     } else {
