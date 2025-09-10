@@ -127,3 +127,19 @@ pub struct SectionView {
     pub comment_count: String,
     pub like_count: String,
 }
+
+impl SectionView {
+    pub fn build(row: SectionRowSample, owner: Value, administrators: Vec<Value>) -> Self {
+        Self {
+            id: row.id.to_string(),
+            name: row.name,
+            description: row.description,
+            owner,
+            administrators: Value::Array(administrators),
+            visited_count: row.visited_count.unwrap_or_default().to_string(),
+            post_count: row.post_count.unwrap_or_default().to_string(),
+            comment_count: row.comment_count.unwrap_or_default().to_string(),
+            like_count: row.like_count.unwrap_or_default().to_string(),
+        }
+    }
+}

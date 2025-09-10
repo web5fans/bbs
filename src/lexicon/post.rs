@@ -19,6 +19,7 @@ pub enum Post {
     Text,
     VisitedCount,
     Visited,
+    Edited,
     Updated,
     Created,
 }
@@ -46,6 +47,7 @@ impl Post {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
+            .col(ColumnDef::new(Self::Edited).timestamp_with_time_zone())
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -93,6 +95,9 @@ impl Post {
             .as_str()
             .map(|s| s.trim_matches('\"'))
             .ok_or_eyre("error in text")?;
+        let edited = post["edited"]
+            .as_str()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
         let created = post["created"]
             .as_str()
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
@@ -106,6 +111,7 @@ impl Post {
                 Self::SectionId,
                 Self::Title,
                 Self::Text,
+                Self::Edited,
                 Self::Updated,
                 Self::Created,
             ])
@@ -116,6 +122,7 @@ impl Post {
                 section_id.into(),
                 title.into(),
                 text.into(),
+                edited.into(),
                 Expr::current_timestamp(),
                 created.into(),
             ])?
@@ -180,6 +187,7 @@ pub struct PostRow {
     pub text: String,
     pub visited_count: i32,
     pub visited: DateTime<Local>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     #[sqlx(rename = "id")]
@@ -200,6 +208,7 @@ pub struct PostView {
     pub text: String,
     pub visited_count: String,
     pub visited: DateTime<Local>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub section_id: String,
@@ -207,6 +216,28 @@ pub struct PostView {
     pub comment_count: String,
     pub like_count: String,
     pub liked: bool,
+}
+
+impl PostView {
+    pub fn build(row: PostRow, author: Value) -> Self {
+        Self {
+            uri: row.uri,
+            cid: row.cid,
+            author,
+            title: row.title,
+            text: row.text,
+            visited_count: row.visited_count.to_string(),
+            visited: row.visited,
+            edited: row.edited,
+            updated: row.updated,
+            created: row.created,
+            section_id: row.section_id.to_string(),
+            section: row.section,
+            comment_count: row.comment_count.to_string(),
+            like_count: row.like_count.to_string(),
+            liked: row.liked,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -220,6 +251,7 @@ pub struct PostRepliedView {
     pub comment_created: DateTime<Local>,
     pub visited_count: String,
     pub visited: DateTime<Local>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub section_id: String,
@@ -227,4 +259,28 @@ pub struct PostRepliedView {
     pub comment_count: String,
     pub like_count: String,
     pub liked: bool,
+}
+
+impl PostRepliedView {
+    pub fn build(row: PostRow, author: Value, comment: (String, DateTime<Local>)) -> Self {
+        Self {
+            comment_text: comment.0,
+            comment_created: comment.1,
+            uri: row.uri,
+            cid: row.cid,
+            author,
+            title: row.title,
+            text: row.text,
+            visited_count: row.visited_count.to_string(),
+            visited: row.visited,
+            edited: row.edited,
+            updated: row.updated,
+            created: row.created,
+            section_id: row.section_id.to_string(),
+            section: row.section,
+            comment_count: row.comment_count.to_string(),
+            like_count: row.like_count.to_string(),
+            liked: row.liked,
+        }
+    }
 }

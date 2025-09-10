@@ -92,18 +92,8 @@ pub(crate) async fn list(
         )
         .await
         .unwrap_or(json!({}));
-        views.push(CommentView {
-            uri: row.uri,
-            cid: row.cid,
-            author: build_author(&state, &row.repo).await,
-            post: row.post,
-            text: row.text,
-            updated: row.updated,
-            created: row.created,
-            like_count: row.like_count.to_string(),
-            replies,
-            liked: row.liked,
-        });
+        let author = build_author(&state, &row.repo).await;
+        views.push(CommentView::build(row, author, replies));
     }
 
     let (sql, values) = sea_query::Query::select()

@@ -98,22 +98,8 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        views.push(PostView {
-            uri: row.uri,
-            cid: row.cid,
-            author: build_author(&state, &row.repo).await,
-            title: row.title,
-            text: row.text,
-            visited_count: row.visited_count.to_string(),
-            visited: row.visited,
-            updated: row.updated,
-            created: row.created,
-            section_id: row.section_id.to_string(),
-            section: row.section,
-            comment_count: row.comment_count.to_string(),
-            like_count: row.like_count.to_string(),
-            liked: row.liked,
-        });
+        let author = build_author(&state, &row.repo).await;
+        views.push(PostView::build(row, author));
     }
     let cursor = views.last().map(|r| r.updated.timestamp());
     let result = if let Some(cursor) = cursor {
@@ -182,22 +168,8 @@ pub(crate) async fn top(
 
     let mut views = vec![];
     for row in rows {
-        views.push(PostView {
-            uri: row.uri,
-            cid: row.cid,
-            author: build_author(&state, &row.repo).await,
-            title: row.title,
-            text: row.text,
-            visited_count: row.visited_count.to_string(),
-            visited: row.visited,
-            updated: row.updated,
-            created: row.created,
-            section_id: row.section_id.to_string(),
-            section: row.section,
-            comment_count: row.comment_count.to_string(),
-            like_count: row.like_count.to_string(),
-            liked: row.liked,
-        });
+        let author = build_author(&state, &row.repo).await;
+        views.push(PostView::build(row, author));
     }
     Ok(ok(json!({
         "posts": views
@@ -243,22 +215,8 @@ pub(crate) async fn detail(
     debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
-    let view = PostView {
-        uri: row.uri,
-        cid: row.cid,
-        author: build_author(&state, &row.repo).await,
-        title: row.title,
-        text: row.text,
-        visited_count: row.visited_count.to_string(),
-        visited: row.visited,
-        updated: row.updated,
-        created: row.created,
-        section_id: row.section_id.to_string(),
-        section: row.section,
-        comment_count: row.comment_count.to_string(),
-        like_count: row.like_count.to_string(),
-        liked: row.liked,
-    };
+    let author = build_author(&state, &row.repo).await;
+    let view = PostView::build(row, author);
 
     Ok(ok(view))
 }
@@ -314,24 +272,8 @@ pub(crate) async fn commented(
     let mut views = vec![];
     for row in rows {
         let comment = roots.get(&row.uri).cloned().unwrap_or_default();
-        views.push(PostRepliedView {
-            comment_text: comment.0,
-            comment_created: comment.1,
-            uri: row.uri,
-            cid: row.cid,
-            author: build_author(&state, &row.repo).await,
-            title: row.title,
-            text: row.text,
-            visited_count: row.visited_count.to_string(),
-            visited: row.visited,
-            updated: row.updated,
-            created: row.created,
-            section_id: row.section_id.to_string(),
-            section: row.section,
-            comment_count: row.comment_count.to_string(),
-            like_count: row.like_count.to_string(),
-            liked: row.liked,
-        });
+        let author = build_author(&state, &row.repo).await;
+        views.push(PostRepliedView::build(row, author, comment));
     }
     let result = if let Some(cursor) = cursor {
         json!({

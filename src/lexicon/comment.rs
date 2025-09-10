@@ -149,3 +149,20 @@ pub struct CommentView {
     pub replies: Value,
     pub liked: bool,
 }
+
+impl CommentView {
+    pub fn build(row: CommentRow, author: Value, replies: Value) -> Self {
+        Self {
+            uri: row.uri,
+            cid: row.cid,
+            author,
+            post: row.post,
+            text: row.text,
+            updated: row.updated,
+            created: row.created,
+            like_count: row.like_count.to_string(),
+            replies,
+            liked: row.liked,
+        }
+    }
+}

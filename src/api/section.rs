@@ -47,30 +47,20 @@ pub(crate) async fn list(
 
     let mut views = vec![];
     for row in rows {
-        let owner_author = if let Some(owner) = row.owner {
-            build_author(&state, &owner).await
+        let owner_author = if let Some(owner) = &row.owner {
+            build_author(&state, owner).await
         } else {
             json!({})
         };
 
         let mut administrators = vec![];
 
-        if let Some(admins) = row.administrators {
+        if let Some(admins) = &row.administrators {
             for admin in admins {
-                administrators.push(build_author(&state, &admin).await);
+                administrators.push(build_author(&state, admin).await);
             }
         }
-        views.push(SectionView {
-            id: row.id.to_string(),
-            name: row.name,
-            description: row.description,
-            owner: owner_author,
-            administrators: Value::Array(administrators),
-            visited_count: row.visited_count.unwrap_or_default().to_string(),
-            post_count: row.post_count.unwrap_or_default().to_string(),
-            comment_count: row.comment_count.unwrap_or_default().to_string(),
-            like_count: row.like_count.unwrap_or_default().to_string(),
-        });
+        views.push(SectionView::build(row, owner_author, administrators));
     }
 
     Ok(ok(views))
@@ -100,29 +90,19 @@ pub(crate) async fn detail(
             AppError::NotFound
         })?;
 
-    let owner_author = if let Some(owner) = row.owner {
-        build_author(&state, &owner).await
+    let owner_author = if let Some(owner) = &row.owner {
+        build_author(&state, owner).await
     } else {
         json!({})
     };
 
     let mut administrators = vec![];
 
-    if let Some(admins) = row.administrators {
+    if let Some(admins) = &row.administrators {
         for admin in admins {
-            administrators.push(build_author(&state, &admin).await);
+            administrators.push(build_author(&state, admin).await);
         }
     }
 
-    Ok(ok(SectionView {
-        id: row.id.to_string(),
-        name: row.name,
-        description: row.description,
-        owner: owner_author,
-        administrators: Value::Array(administrators),
-        visited_count: row.visited_count.unwrap_or_default().to_string(),
-        post_count: row.post_count.unwrap_or_default().to_string(),
-        comment_count: row.comment_count.unwrap_or_default().to_string(),
-        like_count: row.like_count.unwrap_or_default().to_string(),
-    }))
+    Ok(ok(SectionView::build(row, owner_author, administrators)))
 }
