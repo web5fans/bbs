@@ -22,19 +22,7 @@ pub(crate) async fn list(
     State(state): State<AppView>,
     Query(query): Query<Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            Section::Id,
-            Section::Name,
-            Section::Description,
-            Section::Owner,
-            Section::Administrators,
-        ])
-        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
-        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
-        .from(Section::Table)
+    let (sql, values) = Section::build_select()
         .and_where(
             if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
                 Expr::col((Section::Table, Section::Permission))
@@ -98,19 +86,7 @@ pub(crate) async fn detail(
         .ok_or_eyre("id not be null")?
         .parse()?;
 
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            Section::Id,
-            Section::Name,
-            Section::Description,
-            Section::Owner,
-            Section::Administrators,
-        ])
-        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
-        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
-        .from(Section::Table)
+    let (sql, values) = Section::build_select()
         .and_where(Expr::col(Section::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 

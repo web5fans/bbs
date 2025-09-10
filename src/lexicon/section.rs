@@ -71,6 +71,22 @@ impl Section {
         db.execute(query_with(&sql, values)).await?;
         Ok(())
     }
+
+    pub fn build_select() -> sea_query::SelectStatement {
+        sea_query::Query::select()
+        .columns([
+            Section::Id,
+            Section::Name,
+            Section::Description,
+            Section::Owner,
+            Section::Administrators,
+        ])
+        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
+        .from(Section::Table).take()
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

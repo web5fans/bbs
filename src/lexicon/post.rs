@@ -1,10 +1,12 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use sea_query::{ColumnDef, Expr, Iden, OnConflict, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
+
+use crate::lexicon::section::Section;
 
 #[derive(Iden)]
 pub enum Post {
@@ -135,6 +137,37 @@ impl Post {
 
         db.execute(query_with(&sql, values)).await?;
         Ok(())
+    }
+
+    pub fn build_select(viewer: Option<String>) -> sea_query::SelectStatement {
+        sea_query::Query::select()
+        .columns([
+            (Post::Table, Post::Uri),
+            (Post::Table, Post::Cid),
+            (Post::Table, Post::Repo),
+            (Post::Table, Post::Title),
+            (Post::Table, Post::Text),
+            (Post::Table, Post::VisitedCount),
+            (Post::Table, Post::Visited),
+            (Post::Table, Post::Updated),
+            (Post::Table, Post::Created),
+        ])
+        .columns([
+            (Section::Table, Section::Id),
+            (Section::Table, Section::Name),
+        ])
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .expr(if let Some(viewer) = viewer {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
+        .from(Post::Table)
+        .left_join(
+            Section::Table,
+            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
+        ).take()
     }
 }
 

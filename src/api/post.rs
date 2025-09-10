@@ -56,34 +56,7 @@ pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Post::Table, Post::Uri),
-            (Post::Table, Post::Cid),
-            (Post::Table, Post::Repo),
-            (Post::Table, Post::Title),
-            (Post::Table, Post::Text),
-            (Post::Table, Post::VisitedCount),
-            (Post::Table, Post::Visited),
-            (Post::Table, Post::Updated),
-            (Post::Table, Post::Created),
-        ])
-        .columns([
-            (Section::Table, Section::Id),
-            (Section::Table, Section::Name),
-        ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .expr(if let Some(viewer) = query.viewer {
-            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        } else {
-            Expr::cust("false as liked".to_string())
-        })
-        .from(Post::Table)
-        .left_join(
-            Section::Table,
-            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
-        )
+    let (sql, values) = Post::build_select(query.viewer)
         .and_where_option(
             query
                 .repo
@@ -96,13 +69,17 @@ pub(crate) async fn list(
                 Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0)
             },
         )
-        .and_where_option(query.cursor.and_then(|cursor| cursor.parse::<i64>().ok()).map(|cursor| {
-            Expr::col((Post::Table, Post::Updated)).binary(
-                BinOper::SmallerThan,
-                Func::cust(ToTimestamp)
-                    .args([Expr::val(cursor)]),
-            )
-        }))
+        .and_where_option(
+            query
+                .cursor
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Post::Table, Post::Updated)).binary(
+                        BinOper::SmallerThan,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
         .and_where_option(query.q.map(|q| {
             (Post::Table, Post::Text)
                 .into_column_ref()
@@ -189,34 +166,7 @@ pub(crate) async fn top(
         })));
     };
 
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Post::Table, Post::Uri),
-            (Post::Table, Post::Cid),
-            (Post::Table, Post::Repo),
-            (Post::Table, Post::Title),
-            (Post::Table, Post::Text),
-            (Post::Table, Post::VisitedCount),
-            (Post::Table, Post::Visited),
-            (Post::Table, Post::Updated),
-            (Post::Table, Post::Created),
-        ])
-        .columns([
-            (Section::Table, Section::Id),
-            (Section::Table, Section::Name),
-        ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .expr(if let Some(viewer) = query.viewer {
-            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        } else {
-            Expr::cust("false as liked".to_string())
-        })
-        .from(Post::Table)
-        .left_join(
-            Section::Table,
-            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
-        )
+    let (sql, values) = Post::build_select(query.viewer)
         .and_where(Expr::col((Post::Table, Post::SectionId)).eq(section_id))
         .and_where(Expr::col((Post::Table, Post::Repo)).is_in(administrators))
         .order_by(Post::Created, Order::Desc)
@@ -262,36 +212,12 @@ pub(crate) async fn detail(
         .get("uri")
         .and_then(|u| u.as_str())
         .ok_or_eyre("uri not be null")?;
-    let viewer = query.get("viewer").and_then(|u| u.as_str());
+    let viewer = query
+        .get("viewer")
+        .and_then(|u| u.as_str())
+        .map(|s| s.to_string());
 
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Post::Table, Post::Uri),
-            (Post::Table, Post::Cid),
-            (Post::Table, Post::Repo),
-            (Post::Table, Post::Title),
-            (Post::Table, Post::Text),
-            (Post::Table, Post::VisitedCount),
-            (Post::Table, Post::Visited),
-            (Post::Table, Post::Updated),
-            (Post::Table, Post::Created),
-        ])
-        .columns([
-            (Section::Table, Section::Id),
-            (Section::Table, Section::Name),
-        ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .expr(if let Some(viewer) = viewer {
-            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        } else {
-            Expr::cust("false as liked".to_string())
-        })
-        .from(Post::Table)
-        .left_join(
-            Section::Table,
-            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
-        )
+    let (sql, values) = Post::build_select(viewer)
         .and_where(Expr::col(Post::Uri).eq(uri))
         .build_sqlx(PostgresQueryBuilder);
 
@@ -374,34 +300,7 @@ pub(crate) async fn commented(
         .map(|r| (r.0, (r.1, r.2)))
         .collect::<HashMap<String, (String, DateTime<Local>)>>();
 
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Post::Table, Post::Uri),
-            (Post::Table, Post::Cid),
-            (Post::Table, Post::Repo),
-            (Post::Table, Post::Title),
-            (Post::Table, Post::Text),
-            (Post::Table, Post::VisitedCount),
-            (Post::Table, Post::Visited),
-            (Post::Table, Post::Updated),
-            (Post::Table, Post::Created),
-        ])
-        .columns([
-            (Section::Table, Section::Id),
-            (Section::Table, Section::Name),
-        ])
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
-        .expr(if let Some(viewer) = query.viewer {
-            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
-        } else {
-            Expr::cust("false as liked".to_string())
-        })
-        .from(Post::Table)
-        .left_join(
-            Section::Table,
-            Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
-        )
+    let (sql, values) = Post::build_select(query.viewer)
         .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
         .build_sqlx(PostgresQueryBuilder);
 
