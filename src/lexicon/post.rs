@@ -135,6 +135,7 @@ impl Post {
                         Self::SectionId,
                         Self::Title,
                         Self::Text,
+                        Self::Edited,
                         Self::Updated,
                     ])
                     .to_owned(),
@@ -156,6 +157,7 @@ impl Post {
             (Post::Table, Post::Text),
             (Post::Table, Post::VisitedCount),
             (Post::Table, Post::Visited),
+            (Post::Table, Post::Edited),
             (Post::Table, Post::Updated),
             (Post::Table, Post::Created),
         ])
