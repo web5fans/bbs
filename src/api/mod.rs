@@ -27,6 +27,9 @@ impl sea_query::Iden for ToTimestamp {
 }
 
 pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
+    if !repo.starts_with("did:") {
+        return Value::String(repo.to_string());
+    }
     // Get post count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Post::Table, Post::Uri)).count())

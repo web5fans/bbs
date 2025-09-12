@@ -134,6 +134,7 @@ pub struct CommentRow {
     pub created: DateTime<Local>,
     pub like_count: i64,
     pub liked: bool,
+    pub reply_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -148,6 +149,7 @@ pub struct CommentView {
     pub like_count: String,
     pub replies: Value,
     pub liked: bool,
+    pub reply_count: String,
 }
 
 impl CommentView {
@@ -163,6 +165,7 @@ impl CommentView {
             like_count: row.like_count.to_string(),
             replies,
             liked: row.liked,
+            reply_count: row.reply_count.to_string(),
         }
     }
 }
