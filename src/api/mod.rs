@@ -7,7 +7,7 @@ use sqlx::query_as_with;
 use crate::{
     AppView,
     atproto::{NSID_PROFILE, get_record},
-    lexicon::{like::Like, post::Post, reply::Reply},
+    lexicon::{comment::Comment, like::Like, post::Post},
 };
 
 pub(crate) mod comment;
@@ -45,9 +45,9 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
 
     // Get comment count
     let (sql, values) = sea_query::Query::select()
-        .expr(Expr::col((Reply::Table, Reply::Uri)).count())
-        .from(Reply::Table)
-        .and_where(Expr::col(Reply::Repo).eq(repo))
+        .expr(Expr::col((Comment::Table, Comment::Uri)).count())
+        .from(Comment::Table)
+        .and_where(Expr::col(Comment::Repo).eq(repo))
         .build_sqlx(PostgresQueryBuilder);
     debug!("comment count exec sql: {sql}");
     let comment_count_row: (i64,) = query_as_with(&sql, values.clone())
@@ -58,7 +58,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     // Get like count
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Like::Table, Like::Uri)).count())
-        .from(Reply::Table)
+        .from(Like::Table)
         .and_where(Expr::col(Like::To).eq(repo))
         .build_sqlx(PostgresQueryBuilder);
     debug!("like count exec sql: {sql}");
