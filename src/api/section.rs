@@ -28,9 +28,12 @@ pub(crate) async fn list(
                 Expr::col((Section::Table, Section::Permission))
                     .eq(0)
                     .or(Expr::col((Section::Table, Section::Owner)).eq(repo))
-                    .or(Expr::Custom(format!(
-                        "'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))"
-                    )))
+                    .or(Expr::Custom(
+                        format!(
+                            "'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))"
+                        )
+                        .into(),
+                    ))
             } else {
                 Expr::col((Section::Table, Section::Permission)).eq(0)
             },
