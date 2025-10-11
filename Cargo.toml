@@ -1,11 +1,12 @@
 [package]
 name = "bbs"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 authors = ["JLer <jlerxky@live.com>"]
 
 [dependencies]
 axum-extra = { version = "0.10", features = ["typed-header"] }
+bs58 = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 color-eyre = "0.6"
@@ -13,8 +14,10 @@ common_x = { version = "0.8", default-features = false, features = [
     "log",
     "restful",
 ] }
+hex = "0.4"
+k256 = "0.13"
 reqwest = { version = "0.12", features = ["json"] }
-sea-query = { version = "1.0.0-rc.12", default-features = false, features = [
+sea-query = { version = "1.0.0-rc.14", default-features = false, features = [
     "audit",
     "backend-postgres",
     "derive",
@@ -22,7 +25,7 @@ sea-query = { version = "1.0.0-rc.12", default-features = false, features = [
     "postgres-interval",
     "postgres-vector",
 ] }
-sea-query-sqlx = { version = "0.8.0-rc.8", features = [
+sea-query-sqlx = { version = "0.8.0-rc.9", features = [
     "sqlx-postgres",
     "with-chrono",
     "with-json",
@@ -33,6 +36,7 @@ sea-query-sqlx = { version = "0.8.0-rc.8", features = [
 ] }
 serde = "1.0"
 serde_json = "1.0"
+serde_ipld_dagcbor = { version = "0.6", features = ["codec"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }

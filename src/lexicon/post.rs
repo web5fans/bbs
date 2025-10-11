@@ -17,6 +17,10 @@ pub enum Post {
     SectionId,
     Title,
     Text,
+    IsTop,
+    IsAnnouncement,
+    IsDisabled,
+    ReasonsForDisabled,
     VisitedCount,
     Visited,
     Edited,
@@ -35,6 +39,25 @@ impl Post {
             .col(ColumnDef::new(Self::SectionId).integer().not_null())
             .col(ColumnDef::new(Self::Title).string().not_null())
             .col(ColumnDef::new(Self::Text).string().not_null())
+            .col(
+                ColumnDef::new(Self::IsTop)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .col(
+                ColumnDef::new(Self::IsAnnouncement)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .col(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .col(ColumnDef::new(Self::ReasonsForDisabled).string())
             .col(
                 ColumnDef::new(Self::VisitedCount)
                     .integer()
@@ -65,12 +88,25 @@ impl Post {
 
         let sql = sea_query::Table::alter()
             .table(Self::Table)
-            .modify_column(
-                ColumnDef::new(Self::Visited)
-                    .timestamp_with_time_zone()
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::IsTop)
+                    .boolean()
                     .not_null()
-                    .default(Expr::current_timestamp()),
+                    .default(false),
             )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::IsAnnouncement)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .add_column_if_not_exists(ColumnDef::new(Self::ReasonsForDisabled).string())
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
         Ok(())
@@ -147,6 +183,43 @@ impl Post {
         Ok(())
     }
 
+    pub async fn update_tag(
+        db: &Pool<Postgres>,
+        uri: &str,
+        is_top: Option<bool>,
+        is_announcement: Option<bool>,
+        is_disabled: Option<bool>,
+        reasons_for_disabled: Option<String>,
+    ) -> Result<()> {
+        let mut values = Vec::new();
+        if let Some(is_top) = is_top {
+            values.push((Post::IsTop, is_top.into()));
+        }
+        if let Some(is_announcement) = is_announcement {
+            values.push((Post::IsAnnouncement, is_announcement.into()));
+        }
+        if let Some(is_disabled) = is_disabled {
+            values.push((Post::IsDisabled, is_disabled.into()));
+        }
+        if let Some(reasons_for_disabled) = reasons_for_disabled {
+            values.push((Post::ReasonsForDisabled, reasons_for_disabled.into()));
+        }
+        if values.is_empty() {
+            return Ok(());
+        } else {
+            values.push((Post::Updated, Expr::current_timestamp()));
+        }
+
+        let (sql, values) = sea_query::Query::update()
+            .table(Self::Table)
+            .values(values)
+            .and_where(Expr::col(Self::Uri).eq(uri))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("update_by_admin exec sql: {sql}");
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
+    }
+
     pub fn build_select(viewer: Option<String>) -> sea_query::SelectStatement {
         sea_query::Query::select()
         .columns([
@@ -155,6 +228,10 @@ impl Post {
             (Post::Table, Post::Repo),
             (Post::Table, Post::Title),
             (Post::Table, Post::Text),
+            (Post::Table, Post::IsTop),
+            (Post::Table, Post::IsAnnouncement),
+            (Post::Table, Post::IsDisabled),
+            (Post::Table, Post::ReasonsForDisabled),
             (Post::Table, Post::VisitedCount),
             (Post::Table, Post::Visited),
             (Post::Table, Post::Edited),
@@ -187,6 +264,10 @@ pub struct PostRow {
     pub repo: String,
     pub title: String,
     pub text: String,
+    pub is_top: bool,
+    pub is_announcement: bool,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub visited_count: i32,
     pub visited: DateTime<Local>,
     pub edited: Option<DateTime<Local>>,
@@ -208,6 +289,10 @@ pub struct PostView {
     pub author: Value,
     pub title: String,
     pub text: String,
+    pub is_top: bool,
+    pub is_announcement: bool,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub visited_count: String,
     pub visited: DateTime<Local>,
     pub edited: Option<DateTime<Local>>,
@@ -228,6 +313,10 @@ impl PostView {
             author,
             title: row.title,
             text: row.text,
+            is_top: row.is_top,
+            is_announcement: row.is_announcement,
+            is_disabled: row.is_disabled,
+            reasons_for_disabled: row.reasons_for_disabled,
             visited_count: row.visited_count.to_string(),
             visited: row.visited,
             edited: row.edited,

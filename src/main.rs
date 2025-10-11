@@ -1,6 +1,7 @@
 mod api;
 mod atproto;
 mod error;
+mod indexer;
 mod lexicon;
 
 #[macro_use]
@@ -27,6 +28,7 @@ use crate::lexicon::status::Status;
 struct AppView {
     db: Pool<Postgres>,
     pds: String,
+    indexer: String,
     whitelist: Vec<String>,
 }
 
@@ -41,6 +43,8 @@ pub struct Args {
     db_url: String,
     #[clap(short, long)]
     pds: String,
+    #[clap(short, long)]
+    indexer: String,
     #[clap(short, long, default_value = "")]
     whitelist: String,
 }
@@ -67,6 +71,7 @@ async fn main() -> Result<()> {
     let bbs = AppView {
         db,
         pds: args.pds.clone(),
+        indexer: args.indexer.clone(),
         whitelist: args
             .whitelist
             .split(',')
@@ -90,6 +95,10 @@ async fn main() -> Result<()> {
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
         .route("/api/post/commented", post(api::post::commented))
+        .route(
+            "/api/post/update_by_admin",
+            post(api::post::update_by_admin),
+        )
         .route("/api/comment/list", post(api::comment::list))
         .route("/api/reply/list", post(api::reply::list))
         .route("/api/repo/profile", get(api::repo::profile))
