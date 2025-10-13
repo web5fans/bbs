@@ -19,6 +19,8 @@ pub enum Reply {
     Comment,
     To,
     Text,
+    IsDisabled,
+    ReasonsForDisabled,
     Updated,
     Created,
 }
@@ -41,6 +43,13 @@ impl Reply {
                     .default("".to_string()),
             )
             .col(ColumnDef::new(Self::Text).string().not_null())
+            .col(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .col(ColumnDef::new(Self::ReasonsForDisabled).string())
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -151,10 +160,13 @@ pub struct ReplyRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
+    pub section_id: i32,
     pub post: String,
     pub comment: String,
     pub to: String,
     pub text: String,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
@@ -170,6 +182,8 @@ pub struct ReplyView {
     pub comment: String,
     pub to: Value,
     pub text: String,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,

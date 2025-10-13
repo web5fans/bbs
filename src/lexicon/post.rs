@@ -86,29 +86,6 @@ impl Post {
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
 
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::IsTop)
-                    .boolean()
-                    .not_null()
-                    .default(false),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::IsAnnouncement)
-                    .boolean()
-                    .not_null()
-                    .default(false),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::IsDisabled)
-                    .boolean()
-                    .not_null()
-                    .default(false),
-            )
-            .add_column_if_not_exists(ColumnDef::new(Self::ReasonsForDisabled).string())
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await?;
         Ok(())
     }
 
@@ -306,13 +283,17 @@ pub struct PostView {
 }
 
 impl PostView {
-    pub fn build(row: PostRow, author: Value) -> Self {
+    pub fn build(row: PostRow, can_see: bool, author: Value) -> Self {
         Self {
             uri: row.uri,
             cid: row.cid,
             author,
             title: row.title,
-            text: row.text,
+            text: if row.is_disabled && !can_see {
+                String::default()
+            } else {
+                row.text
+            },
             is_top: row.is_top,
             is_announcement: row.is_announcement,
             is_disabled: row.is_disabled,
@@ -353,7 +334,12 @@ pub struct PostRepliedView {
 }
 
 impl PostRepliedView {
-    pub fn build(row: PostRow, author: Value, comment: (String, DateTime<Local>)) -> Self {
+    pub fn build(
+        row: PostRow,
+        can_see: bool,
+        author: Value,
+        comment: (String, DateTime<Local>),
+    ) -> Self {
         Self {
             comment_text: comment.0,
             comment_created: comment.1,
@@ -361,7 +347,11 @@ impl PostRepliedView {
             cid: row.cid,
             author,
             title: row.title,
-            text: row.text,
+            text: if row.is_disabled && !can_see {
+                String::default()
+            } else {
+                row.text
+            },
             visited_count: row.visited_count.to_string(),
             visited: row.visited,
             edited: row.edited,

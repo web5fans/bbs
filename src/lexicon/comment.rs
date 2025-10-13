@@ -17,6 +17,8 @@ pub enum Comment {
     SectionId,
     Post,
     Text,
+    IsDisabled,
+    ReasonsForDisabled,
     Updated,
     Created,
 }
@@ -33,6 +35,13 @@ impl Comment {
             .col(ColumnDef::new(Self::Post).string().not_null())
             .col(ColumnDef::new(Self::Text).string().not_null())
             .col(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .col(ColumnDef::new(Self::ReasonsForDisabled).string())
+            .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
                     .not_null()
@@ -44,6 +53,18 @@ impl Comment {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
+            )
+            .add_column_if_not_exists(ColumnDef::new(Self::ReasonsForDisabled).string())
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
         Ok(())
@@ -128,8 +149,11 @@ pub struct CommentRow {
     pub uri: String,
     pub cid: String,
     pub repo: String,
+    pub section_id: i32,
     pub post: String,
     pub text: String,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
@@ -144,6 +168,8 @@ pub struct CommentView {
     pub author: Value,
     pub post: String,
     pub text: String,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,
@@ -153,13 +179,19 @@ pub struct CommentView {
 }
 
 impl CommentView {
-    pub fn build(row: CommentRow, author: Value, replies: Value) -> Self {
+    pub fn build(row: CommentRow, can_see: bool, author: Value, replies: Value) -> Self {
         Self {
             uri: row.uri,
             cid: row.cid,
             author,
             post: row.post,
-            text: row.text,
+            text: if row.is_disabled && !can_see {
+                String::default()
+            } else {
+                row.text
+            },
+            is_disabled: row.is_disabled,
+            reasons_for_disabled: row.reasons_for_disabled,
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),

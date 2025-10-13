@@ -14,7 +14,10 @@ use crate::{
     AppView,
     api::{ToTimestamp, build_author},
     error::AppError,
-    lexicon::reply::{Reply, ReplyRow, ReplyView},
+    lexicon::{
+        reply::{Reply, ReplyRow, ReplyView},
+        section::Section,
+    },
 };
 
 #[derive(Debug, Validate, Deserialize)]
@@ -58,10 +61,13 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             (Reply::Table, Reply::Uri),
             (Reply::Table, Reply::Cid),
             (Reply::Table, Reply::Repo),
+            (Reply::Table, Reply::SectionId),
             (Reply::Table, Reply::Post),
             (Reply::Table, Reply::Comment),
             (Reply::Table, Reply::To),
             (Reply::Table, Reply::Text),
+            (Reply::Table, Reply::IsDisabled),
+            (Reply::Table, Reply::ReasonsForDisabled),
             (Reply::Table, Reply::Updated),
             (Reply::Table, Reply::Created),
         ])
@@ -95,8 +101,21 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let sections = Section::all(&state.db).await?;
     let mut views = vec![];
     for row in rows {
+        let can_see = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections.get(&row.section_id).is_some_and(|section| {
+                    section
+                        .administrators
+                        .as_ref()
+                        .is_some_and(|admins| admins.contains(viewer))
+                        || (section.owner.as_ref() == Some(viewer))
+                })
+        } else {
+            false
+        };
         views.push(ReplyView {
             uri: row.uri,
             cid: row.cid,
@@ -104,7 +123,13 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             post: row.post,
             comment: row.comment,
             to: build_author(state, &row.to).await,
-            text: row.text,
+            text: if row.is_disabled && !can_see {
+                String::default()
+            } else {
+                row.text
+            },
+            is_disabled: row.is_disabled,
+            reasons_for_disabled: row.reasons_for_disabled,
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),

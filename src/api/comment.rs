@@ -14,7 +14,10 @@ use crate::{
     AppView,
     api::{build_author, reply::ReplyQuery},
     error::AppError,
-    lexicon::comment::{Comment, CommentRow, CommentView},
+    lexicon::{
+        comment::{Comment, CommentRow, CommentView},
+        section::Section,
+    },
 };
 
 #[derive(Debug, Validate, Deserialize)]
@@ -52,8 +55,11 @@ pub(crate) async fn list(
             (Comment::Table, Comment::Uri),
             (Comment::Table, Comment::Cid),
             (Comment::Table, Comment::Repo),
+            (Comment::Table, Comment::SectionId),
             (Comment::Table, Comment::Post),
             (Comment::Table, Comment::Text),
+            (Comment::Table, Comment::IsDisabled),
+            (Comment::Table, Comment::ReasonsForDisabled),
             (Comment::Table, Comment::Updated),
             (Comment::Table, Comment::Created),
         ])
@@ -78,6 +84,7 @@ pub(crate) async fn list(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let sections = Section::all(&state.db).await?;
     let mut views = vec![];
     for row in rows {
         let replies = crate::api::reply::list_reply(
@@ -94,7 +101,20 @@ pub(crate) async fn list(
         .await
         .unwrap_or(json!({}));
         let author = build_author(&state, &row.repo).await;
-        views.push(CommentView::build(row, author, replies));
+        let can_see = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections.get(&row.section_id).is_some_and(|section| {
+                    section
+                        .administrators
+                        .as_ref()
+                        .is_some_and(|admins| admins.contains(viewer))
+                        || (section.owner.as_ref() == Some(viewer))
+                })
+        } else {
+            false
+        };
+
+        views.push(CommentView::build(row, can_see, author, replies));
     }
 
     let (sql, values) = sea_query::Query::select()

@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Local};
-use color_eyre::Result;
-use sea_query::{ColumnDef, ColumnType, Expr, Iden, OnConflict, PostgresQueryBuilder};
+use color_eyre::{Result, eyre::eyre};
+use sea_query::{ColumnDef, ColumnType, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{Executor, Pool, Postgres, query, query_with};
+use sqlx::{Executor, Pool, Postgres, query, query_as_with, query_with};
 
 #[derive(Iden)]
 pub enum Section {
@@ -72,6 +74,49 @@ impl Section {
         Ok(())
     }
 
+    pub async fn all(db: &Pool<Postgres>) -> Result<HashMap<i32, SectionRowMini>> {
+        let (sql, values) = sea_query::Query::select()
+            .columns([
+                Section::Id,
+                Section::Name,
+                Section::Owner,
+                Section::Administrators,
+            ])
+            .from(Section::Table)
+            .build_sqlx(PostgresQueryBuilder);
+        let list: Vec<SectionRowMini> = query_as_with(&sql, values.clone())
+            .fetch_all(db)
+            .await
+            .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+        // list to map
+        let mut map = HashMap::new();
+        for row in list {
+            map.insert(row.id, row);
+        }
+
+        Ok(map)
+    }
+
+    pub async fn select_by_uri(db: &Pool<Postgres>, id: i32) -> Result<SectionRow> {
+        let (sql, values) = sea_query::Query::select()
+            .columns([
+                Section::Id,
+                Section::Name,
+                Section::Description,
+                Section::Owner,
+                Section::Administrators,
+            ])
+            .from(Section::Table)
+            .and_where(Expr::col(Section::Id).eq(id))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("sql: {sql} ({values:?})");
+        query_as_with(&sql, values.clone())
+            .fetch_one(db)
+            .await
+            .map_err(|e| eyre!("exec sql failed: {e}"))
+    }
+
     pub fn build_select() -> sea_query::SelectStatement {
         sea_query::Query::select()
         .columns([
@@ -92,14 +137,22 @@ impl Section {
 #[derive(sqlx::FromRow, Debug, Serialize)]
 #[allow(dead_code)]
 pub struct SectionRow {
-    id: i32,
-    name: String,
-    description: Option<String>,
-    permission: i32,
-    owner: Option<String>,
-    administrators: Option<Vec<String>>,
-    updated: DateTime<Local>,
-    created: DateTime<Local>,
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub permission: i32,
+    pub owner: Option<String>,
+    pub administrators: Option<Vec<String>>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct SectionRowMini {
+    pub id: i32,
+    pub name: String,
+    pub owner: Option<String>,
+    pub administrators: Option<Vec<String>>,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

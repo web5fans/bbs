@@ -26,7 +26,7 @@ use crate::{
     lexicon::{
         comment::Comment,
         post::{Post, PostRepliedView, PostRow, PostView},
-        section::{Section, SectionRowSample},
+        section::Section,
     },
 };
 
@@ -34,7 +34,7 @@ use crate::{
 #[serde(default)]
 pub(crate) struct PostQuery {
     pub section_id: Option<String>,
-    pub is_announcement: Option<bool>,
+    pub is_announcement: bool,
     pub cursor: Option<String>,
     pub limit: u64,
     pub q: Option<String>,
@@ -46,7 +46,7 @@ impl Default for PostQuery {
     fn default() -> Self {
         Self {
             section_id: Default::default(),
-            is_announcement: Default::default(),
+            is_announcement: false,
             cursor: Default::default(),
             limit: 20,
             q: Default::default(),
@@ -60,10 +60,8 @@ pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = Post::build_select(query.viewer)
-        .and_where_option(query.is_announcement.map(|is_announcement| {
-            Expr::col((Post::Table, Post::IsAnnouncement)).eq(is_announcement)
-        }))
+    let (sql, values) = Post::build_select(query.viewer.clone())
+        .and_where(Expr::col((Post::Table, Post::IsAnnouncement)).eq(query.is_announcement))
         .and_where_option(
             query
                 .repo
@@ -106,10 +104,26 @@ pub(crate) async fn list(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let sections = Section::all(&state.db).await?;
+
     let mut views = vec![];
     for row in rows {
         let author = build_author(&state, &row.repo).await;
-        views.push(PostView::build(row, author));
+
+        let can_see = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections.get(&row.section_id).is_some_and(|section| {
+                    section
+                        .administrators
+                        .as_ref()
+                        .is_some_and(|admins| admins.contains(viewer))
+                        || (section.owner.as_ref() == Some(viewer))
+                })
+        } else {
+            false
+        };
+
+        views.push(PostView::build(row, can_see, author));
     }
     let cursor = views.last().map(|r| r.updated.timestamp());
     let result = if let Some(cursor) = cursor {
@@ -162,7 +176,7 @@ pub(crate) async fn top(
         })));
     };
 
-    let (sql, values) = Post::build_select(query.viewer)
+    let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::SectionId)).eq(section_id))
         .and_where(Expr::col((Post::Table, Post::Repo)).is_in(administrators))
         .order_by(Post::Created, Order::Desc)
@@ -176,10 +190,24 @@ pub(crate) async fn top(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let sections = Section::all(&state.db).await?;
+
     let mut views = vec![];
     for row in rows {
         let author = build_author(&state, &row.repo).await;
-        views.push(PostView::build(row, author));
+        let can_see = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections.get(&row.section_id).is_some_and(|section| {
+                    section
+                        .administrators
+                        .as_ref()
+                        .is_some_and(|admins| admins.contains(viewer))
+                        || (section.owner.as_ref() == Some(viewer))
+                })
+        } else {
+            false
+        };
+        views.push(PostView::build(row, can_see, author));
     }
     Ok(ok(json!({
         "posts": views
@@ -199,7 +227,7 @@ pub(crate) async fn detail(
         .and_then(|u| u.as_str())
         .map(|s| s.to_string());
 
-    let (sql, values) = Post::build_select(viewer)
+    let (sql, values) = Post::build_select(viewer.clone())
         .and_where(Expr::col(Post::Uri).eq(uri))
         .build_sqlx(PostgresQueryBuilder);
 
@@ -225,8 +253,21 @@ pub(crate) async fn detail(
     debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
+    let sections = Section::all(&state.db).await?;
     let author = build_author(&state, &row.repo).await;
-    let view = PostView::build(row, author);
+    let can_see = if let Some(viewer) = &viewer {
+        &row.repo == viewer
+            || sections.get(&row.section_id).is_some_and(|section| {
+                section
+                    .administrators
+                    .as_ref()
+                    .is_some_and(|admins| admins.contains(viewer))
+                    || (section.owner.as_ref() == Some(viewer))
+            })
+    } else {
+        false
+    };
+    let view = PostView::build(row, can_see, author);
 
     Ok(ok(view))
 }
@@ -268,7 +309,7 @@ pub(crate) async fn commented(
         .map(|r| (r.0, (r.1, r.2)))
         .collect::<HashMap<String, (String, DateTime<Local>)>>();
 
-    let (sql, values) = Post::build_select(query.viewer)
+    let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
         .build_sqlx(PostgresQueryBuilder);
 
@@ -279,11 +320,24 @@ pub(crate) async fn commented(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let sections = Section::all(&state.db).await?;
     let mut views = vec![];
     for row in rows {
         let comment = roots.get(&row.uri).cloned().unwrap_or_default();
         let author = build_author(&state, &row.repo).await;
-        views.push(PostRepliedView::build(row, author, comment));
+        let can_see = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections.get(&row.section_id).is_some_and(|section| {
+                    section
+                        .administrators
+                        .as_ref()
+                        .is_some_and(|admins| admins.contains(viewer))
+                        || (section.owner.as_ref() == Some(viewer))
+                })
+        } else {
+            false
+        };
+        views.push(PostRepliedView::build(row, can_see, author, comment));
     }
     let result = if let Some(cursor) = cursor {
         json!({
@@ -355,12 +409,7 @@ pub(crate) async fn update_by_admin(
             AppError::NotFound
         })?;
 
-    let (sql, values) = Section::build_select()
-        .and_where(Expr::col(Section::Id).eq(post_row.section_id))
-        .build_sqlx(PostgresQueryBuilder);
-    debug!("sql: {sql} ({values:?})");
-    let section_row: SectionRowSample = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
+    let section_row = Section::select_by_uri(&state.db, post_row.section_id)
         .await
         .map_err(|e| {
             debug!("exec sql failed: {e}");
@@ -384,8 +433,11 @@ pub(crate) async fn update_by_admin(
             .ok_or_else(|| AppError::ValidateFailed("invalid signing_key_did".to_string()))?;
         let signature = hex::decode(&body.signed_bytes)
             .map(|bytes| Signature::from_slice(&bytes).map_err(|e| eyre!(e)))??;
+
+        let unsigned_bytes = serde_ipld_dagcbor::to_vec(&body.params)?;
+        debug!("unsigned_bytes: {}", hex::encode(&unsigned_bytes));
         verifying_key
-            .verify(&serde_ipld_dagcbor::to_vec(&body.params)?, &signature)
+            .verify(&unsigned_bytes, &signature)
             .map_err(|e| {
                 debug!("verify signature failed: {e}");
                 AppError::ValidateFailed("verify signature failed".to_string())
