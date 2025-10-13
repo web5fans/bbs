@@ -192,7 +192,7 @@ impl Post {
             .values(values)
             .and_where(Expr::col(Self::Uri).eq(uri))
             .build_sqlx(PostgresQueryBuilder);
-        debug!("update_by_admin exec sql: {sql}");
+        debug!("update_tag exec sql: {sql}");
         db.execute(query_with(&sql, values)).await?;
         Ok(())
     }

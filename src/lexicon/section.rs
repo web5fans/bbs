@@ -98,12 +98,11 @@ impl Section {
         Ok(map)
     }
 
-    pub async fn select_by_uri(db: &Pool<Postgres>, id: i32) -> Result<SectionRow> {
+    pub async fn select_by_uri(db: &Pool<Postgres>, id: i32) -> Result<SectionRowMini> {
         let (sql, values) = sea_query::Query::select()
             .columns([
                 Section::Id,
                 Section::Name,
-                Section::Description,
                 Section::Owner,
                 Section::Administrators,
             ])
@@ -128,6 +127,8 @@ impl Section {
         ])
         .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_announcement\") as announcement_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_top\") as top_count"))
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
         .from(Section::Table).take()
@@ -164,6 +165,8 @@ pub struct SectionRowSample {
     pub administrators: Option<Vec<String>>,
     pub visited_count: Option<i64>,
     pub post_count: Option<i64>,
+    pub announcement_count: Option<i64>,
+    pub top_count: Option<i64>,
     pub comment_count: Option<i64>,
     pub like_count: Option<i64>,
 }
@@ -177,6 +180,8 @@ pub struct SectionView {
     pub administrators: Value,
     pub visited_count: String,
     pub post_count: String,
+    pub announcement_count: String,
+    pub top_count: String,
     pub comment_count: String,
     pub like_count: String,
 }
@@ -191,6 +196,8 @@ impl SectionView {
             administrators: Value::Array(administrators),
             visited_count: row.visited_count.unwrap_or_default().to_string(),
             post_count: row.post_count.unwrap_or_default().to_string(),
+            announcement_count: row.announcement_count.unwrap_or_default().to_string(),
+            top_count: row.top_count.unwrap_or_default().to_string(),
             comment_count: row.comment_count.unwrap_or_default().to_string(),
             like_count: row.like_count.unwrap_or_default().to_string(),
         }

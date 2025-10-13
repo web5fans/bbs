@@ -10,6 +10,7 @@ use crate::{
     lexicon::{comment::Comment, like::Like, post::Post},
 };
 
+pub(crate) mod admin;
 pub(crate) mod comment;
 pub(crate) mod like;
 pub(crate) mod post;

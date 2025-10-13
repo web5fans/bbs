@@ -153,6 +153,35 @@ impl Reply {
         db.execute(query_with(&sql, values)).await.ok();
         Ok(())
     }
+
+    pub async fn update_tag(
+        db: &Pool<Postgres>,
+        uri: &str,
+        is_disabled: Option<bool>,
+        reasons_for_disabled: Option<String>,
+    ) -> Result<()> {
+        let mut values = Vec::new();
+        if let Some(is_disabled) = is_disabled {
+            values.push((Post::IsDisabled, is_disabled.into()));
+        }
+        if let Some(reasons_for_disabled) = reasons_for_disabled {
+            values.push((Post::ReasonsForDisabled, reasons_for_disabled.into()));
+        }
+        if values.is_empty() {
+            return Ok(());
+        } else {
+            values.push((Post::Updated, Expr::current_timestamp()));
+        }
+
+        let (sql, values) = sea_query::Query::update()
+            .table(Self::Table)
+            .values(values)
+            .and_where(Expr::col(Self::Uri).eq(uri))
+            .build_sqlx(PostgresQueryBuilder);
+        debug!("update_tag exec sql: {sql}");
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
