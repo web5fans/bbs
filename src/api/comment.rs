@@ -101,7 +101,7 @@ pub(crate) async fn list(
         .await
         .unwrap_or(json!({}));
         let author = build_author(&state, &row.repo).await;
-        let can_see = if let Some(viewer) = &query.viewer {
+        let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
                 || sections.get(&row.section_id).is_some_and(|section| {
                     section
@@ -113,8 +113,9 @@ pub(crate) async fn list(
         } else {
             false
         };
-
-        views.push(CommentView::build(row, can_see, author, replies));
+        if !row.is_disabled || display {
+            views.push(CommentView::build(row, author, replies));
+        }
     }
 
     let (sql, values) = sea_query::Query::select()

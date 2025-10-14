@@ -104,7 +104,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
     let sections = Section::all(&state.db).await?;
     let mut views = vec![];
     for row in rows {
-        let can_see = if let Some(viewer) = &query.viewer {
+        let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
                 || sections.get(&row.section_id).is_some_and(|section| {
                     section
@@ -116,25 +116,23 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
         } else {
             false
         };
-        views.push(ReplyView {
-            uri: row.uri,
-            cid: row.cid,
-            author: build_author(state, &row.repo).await,
-            post: row.post,
-            comment: row.comment,
-            to: build_author(state, &row.to).await,
-            text: if row.is_disabled && !can_see {
-                String::default()
-            } else {
-                row.text
-            },
-            is_disabled: row.is_disabled,
-            reasons_for_disabled: row.reasons_for_disabled,
-            updated: row.updated,
-            created: row.created,
-            like_count: row.like_count.to_string(),
-            liked: row.liked,
-        });
+        if !row.is_disabled || display {
+            views.push(ReplyView {
+                uri: row.uri,
+                cid: row.cid,
+                author: build_author(state, &row.repo).await,
+                post: row.post,
+                comment: row.comment,
+                to: build_author(state, &row.to).await,
+                text: row.text,
+                is_disabled: row.is_disabled,
+                reasons_for_disabled: row.reasons_for_disabled,
+                updated: row.updated,
+                created: row.created,
+                like_count: row.like_count.to_string(),
+                liked: row.liked,
+            });
+        }
     }
 
     let cursor = views.last().map(|r| r.created.timestamp());

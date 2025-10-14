@@ -196,17 +196,13 @@ pub struct CommentView {
 }
 
 impl CommentView {
-    pub fn build(row: CommentRow, can_see: bool, author: Value, replies: Value) -> Self {
+    pub fn build(row: CommentRow,  author: Value, replies: Value) -> Self {
         Self {
             uri: row.uri,
             cid: row.cid,
             author,
             post: row.post,
-            text: if row.is_disabled && !can_see {
-                String::default()
-            } else {
-                row.text
-            },
+            text: row.text,
             is_disabled: row.is_disabled,
             reasons_for_disabled: row.reasons_for_disabled,
             updated: row.updated,

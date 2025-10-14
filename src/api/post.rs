@@ -108,7 +108,7 @@ pub(crate) async fn list(
     for row in rows {
         let author = build_author(&state, &row.repo).await;
 
-        let can_see = if let Some(viewer) = &query.viewer {
+        let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
                 || sections.get(&row.section_id).is_some_and(|section| {
                     section
@@ -121,7 +121,9 @@ pub(crate) async fn list(
             false
         };
 
-        views.push(PostView::build(row, can_see, author));
+        if !row.is_disabled || display {
+            views.push(PostView::build(row, author));
+        }
     }
     let cursor = views.last().map(|r| r.updated.timestamp());
     let result = if let Some(cursor) = cursor {
@@ -193,7 +195,7 @@ pub(crate) async fn top(
     let mut views = vec![];
     for row in rows {
         let author = build_author(&state, &row.repo).await;
-        let can_see = if let Some(viewer) = &query.viewer {
+        let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
                 || sections.get(&row.section_id).is_some_and(|section| {
                     section
@@ -205,7 +207,10 @@ pub(crate) async fn top(
         } else {
             false
         };
-        views.push(PostView::build(row, can_see, author));
+
+        if !row.is_disabled || display {
+            views.push(PostView::build(row, author));
+        }
     }
     Ok(ok(json!({
         "posts": views
@@ -253,7 +258,7 @@ pub(crate) async fn detail(
 
     let sections = Section::all(&state.db).await?;
     let author = build_author(&state, &row.repo).await;
-    let can_see = if let Some(viewer) = &viewer {
+    let display = if let Some(viewer) = &viewer {
         &row.repo == viewer
             || sections.get(&row.section_id).is_some_and(|section| {
                 section
@@ -265,9 +270,12 @@ pub(crate) async fn detail(
     } else {
         false
     };
-    let view = PostView::build(row, can_see, author);
 
-    Ok(ok(view))
+    if !row.is_disabled || display {
+        Ok(ok(PostView::build(row, author)))
+    } else {
+        Err(AppError::NotFound)
+    }
 }
 
 pub(crate) async fn commented(
@@ -323,7 +331,7 @@ pub(crate) async fn commented(
     for row in rows {
         let comment = roots.get(&row.uri).cloned().unwrap_or_default();
         let author = build_author(&state, &row.repo).await;
-        let can_see = if let Some(viewer) = &query.viewer {
+        let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
                 || sections.get(&row.section_id).is_some_and(|section| {
                     section
@@ -335,7 +343,9 @@ pub(crate) async fn commented(
         } else {
             false
         };
-        views.push(PostRepliedView::build(row, can_see, author, comment));
+        if !row.is_disabled || display {
+            views.push(PostRepliedView::build(row, author, comment));
+        }
     }
     let result = if let Some(cursor) = cursor {
         json!({
