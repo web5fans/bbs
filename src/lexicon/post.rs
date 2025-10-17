@@ -315,6 +315,10 @@ pub struct PostRepliedView {
     pub author: Value,
     pub title: String,
     pub text: String,
+    pub is_top: bool,
+    pub is_announcement: bool,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
     pub comment_text: String,
     pub comment_created: DateTime<Local>,
     pub visited_count: String,
@@ -330,11 +334,7 @@ pub struct PostRepliedView {
 }
 
 impl PostRepliedView {
-    pub fn build(
-        row: PostRow,
-        author: Value,
-        comment: (String, DateTime<Local>),
-    ) -> Self {
+    pub fn build(row: PostRow, author: Value, comment: (String, DateTime<Local>)) -> Self {
         Self {
             comment_text: comment.0,
             comment_created: comment.1,
@@ -343,6 +343,10 @@ impl PostRepliedView {
             author,
             title: row.title,
             text: row.text,
+            is_top: row.is_top,
+            is_announcement: row.is_announcement,
+            is_disabled: row.is_disabled,
+            reasons_for_disabled: row.reasons_for_disabled,
             visited_count: row.visited_count.to_string(),
             visited: row.visited,
             edited: row.edited,
