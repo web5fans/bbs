@@ -131,6 +131,30 @@ impl Comment {
         Ok(())
     }
 
+    pub fn build_select(viewer: Option<String>) -> sea_query::SelectStatement {
+        sea_query::Query::select()
+        .columns([
+            (Self::Table, Self::Uri),
+            (Self::Table, Self::Cid),
+            (Self::Table, Self::Repo),
+            (Self::Table, Self::SectionId),
+            (Self::Table, Self::Post),
+            (Self::Table, Self::Text),
+            (Self::Table, Self::IsDisabled),
+            (Self::Table, Self::ReasonsForDisabled),
+            (Self::Table, Self::Updated),
+            (Self::Table, Self::Created),
+        ])
+        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
+        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"comment\" = \"comment\".\"uri\") as reply_count"))
+        .expr(if let Some(viewer) = &viewer {
+            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"comment\".\"uri\" ) > 0) as liked"))
+        } else {
+            Expr::cust("false as liked".to_string())
+        })
+        .from(Self::Table).take()
+    }
+
     pub async fn update_tag(
         db: &Pool<Postgres>,
         uri: &str,
@@ -161,7 +185,7 @@ impl Comment {
     }
 }
 
-#[derive(sqlx::FromRow, Debug, Serialize)]
+#[derive(sqlx::FromRow, Debug, Serialize, Clone)]
 pub struct CommentRow {
     pub uri: String,
     pub cid: String,
@@ -196,7 +220,7 @@ pub struct CommentView {
 }
 
 impl CommentView {
-    pub fn build(row: CommentRow,  author: Value, replies: Value) -> Self {
+    pub fn build(row: CommentRow, author: Value, replies: Value) -> Self {
         Self {
             uri: row.uri,
             cid: row.cid,

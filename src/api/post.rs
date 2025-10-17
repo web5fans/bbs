@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Local};
 use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{
@@ -22,7 +21,7 @@ use crate::{
     api::{ToTimestamp, build_author},
     error::AppError,
     lexicon::{
-        comment::Comment,
+        comment::{Comment, CommentRow},
         post::{Post, PostRepliedView, PostRow, PostView},
         section::Section,
     },
@@ -274,7 +273,9 @@ pub(crate) async fn detail(
     if !row.is_disabled || display {
         Ok(ok(PostView::build(row, author)))
     } else {
-        Err(AppError::NotFound)
+        Err(AppError::IsDisabled(
+            row.reasons_for_disabled.unwrap_or_default(),
+        ))
     }
 }
 
@@ -282,13 +283,7 @@ pub(crate) async fn commented(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Comment::Table, Comment::Post),
-            (Comment::Table, Comment::Text),
-            (Comment::Table, Comment::Created),
-        ])
-        .from(Comment::Table)
+    let (sql, values) = Comment::build_select(query.viewer.clone())
         .and_where(Expr::col((Comment::Table, Comment::Repo)).eq(query.repo))
         .and_where_option(
             query
@@ -305,15 +300,15 @@ pub(crate) async fn commented(
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<(String, String, DateTime<Local>)> = query_as_with(&sql, values.clone())
+    let rows: Vec<CommentRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
-    let cursor = rows.last().map(|r| r.2.timestamp());
+    let cursor = rows.last().map(|r| r.created.timestamp());
     let roots = rows
         .into_iter()
-        .map(|r| (r.0, (r.1, r.2)))
-        .collect::<HashMap<String, (String, DateTime<Local>)>>();
+        .map(|r| (r.post.clone(), r))
+        .collect::<HashMap<String, CommentRow>>();
 
     let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
@@ -329,22 +324,35 @@ pub(crate) async fn commented(
     let sections = Section::all(&state.db).await?;
     let mut views = vec![];
     for row in rows {
-        let comment = roots.get(&row.uri).cloned().unwrap_or_default();
-        let author = build_author(&state, &row.repo).await;
-        let display = if let Some(viewer) = &query.viewer {
-            &row.repo == viewer
-                || sections.get(&row.section_id).is_some_and(|section| {
-                    section
-                        .administrators
-                        .as_ref()
-                        .is_some_and(|admins| admins.contains(viewer))
-                        || (section.owner.as_ref() == Some(viewer))
-                })
-        } else {
-            false
-        };
-        if !row.is_disabled || display {
-            views.push(PostRepliedView::build(row, author, comment));
+        if let Some(comment) = roots.get(&row.uri).cloned() {
+            let post_author = build_author(&state, &row.repo).await;
+            let post_display = if let Some(viewer) = &query.viewer {
+                &row.repo == viewer
+                    || sections.get(&row.section_id).is_some_and(|section| {
+                        section
+                            .administrators
+                            .as_ref()
+                            .is_some_and(|admins| admins.contains(viewer))
+                            || (section.owner.as_ref() == Some(viewer))
+                    })
+            } else {
+                false
+            };
+            let comment_display = if let Some(viewer) = &query.viewer {
+                &comment.repo == viewer
+                    || sections.get(&comment.section_id).is_some_and(|section| {
+                        section
+                            .administrators
+                            .as_ref()
+                            .is_some_and(|admins| admins.contains(viewer))
+                            || (section.owner.as_ref() == Some(viewer))
+                    })
+            } else {
+                false
+            };
+            if (!row.is_disabled || post_display) && (!comment.is_disabled || comment_display) {
+                views.push(PostRepliedView::build(row, post_author, comment));
+            }
         }
     }
     let result = if let Some(cursor) = cursor {

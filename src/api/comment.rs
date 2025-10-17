@@ -50,27 +50,7 @@ pub(crate) async fn list(
         .validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     let offset = query.per_page * (query.page - 1);
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Comment::Table, Comment::Uri),
-            (Comment::Table, Comment::Cid),
-            (Comment::Table, Comment::Repo),
-            (Comment::Table, Comment::SectionId),
-            (Comment::Table, Comment::Post),
-            (Comment::Table, Comment::Text),
-            (Comment::Table, Comment::IsDisabled),
-            (Comment::Table, Comment::ReasonsForDisabled),
-            (Comment::Table, Comment::Updated),
-            (Comment::Table, Comment::Created),
-        ])
-        .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
-        .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"comment\" = \"comment\".\"uri\") as reply_count"))
-        .expr(if let Some(viewer) = &query.viewer {
-            Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"comment\".\"uri\" ) > 0) as liked"))
-        } else {
-            Expr::cust("false as liked".to_string())
-        })
-        .from(Comment::Table)
+    let (sql, values) = Comment::build_select(query.viewer.clone())
         .and_where(Expr::col((Comment::Table, Comment::Post)).eq(&query.post))
         .order_by(Comment::Created, Order::Asc)
         .offset(offset)

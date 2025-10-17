@@ -10,6 +10,7 @@ use serde_json::json;
 pub(crate) enum AppError {
     ValidateFailed(String),
     NotFound,
+    IsDisabled(String),
     CallPdsFailed(String),
     Unknown(String),
 }
@@ -26,6 +27,11 @@ impl IntoResponse for AppError {
                 StatusCode::NOT_FOUND,
                 "NotFound",
                 string_to_static_str("NOT_FOUND".to_owned()),
+            ),
+            AppError::IsDisabled(msg) => (
+                StatusCode::FORBIDDEN,
+                "IsDisabled",
+                string_to_static_str(msg),
             ),
             AppError::CallPdsFailed(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

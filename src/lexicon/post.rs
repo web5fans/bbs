@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
-use crate::lexicon::section::Section;
+use crate::lexicon::{comment::CommentRow, section::Section};
 
 #[derive(Iden)]
 pub enum Post {
@@ -321,6 +321,8 @@ pub struct PostRepliedView {
     pub reasons_for_disabled: Option<String>,
     pub comment_text: String,
     pub comment_created: DateTime<Local>,
+    pub comment_disabled: bool,
+    pub comment_reasons_for_disabled: Option<String>,
     pub visited_count: String,
     pub visited: DateTime<Local>,
     pub edited: Option<DateTime<Local>>,
@@ -334,10 +336,12 @@ pub struct PostRepliedView {
 }
 
 impl PostRepliedView {
-    pub fn build(row: PostRow, author: Value, comment: (String, DateTime<Local>)) -> Self {
+    pub fn build(row: PostRow, author: Value, comment: CommentRow) -> Self {
         Self {
-            comment_text: comment.0,
-            comment_created: comment.1,
+            comment_text: comment.text,
+            comment_created: comment.created,
+            comment_disabled: comment.is_disabled,
+            comment_reasons_for_disabled: comment.reasons_for_disabled,
             uri: row.uri,
             cid: row.cid,
             author,
