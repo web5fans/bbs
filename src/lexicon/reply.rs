@@ -169,8 +169,6 @@ impl Reply {
         }
         if values.is_empty() {
             return Ok(());
-        } else {
-            values.push((Post::Updated, Expr::current_timestamp()));
         }
 
         let (sql, values) = sea_query::Query::update()
