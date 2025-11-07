@@ -11,7 +11,8 @@ pub(crate) enum AppError {
     ValidateFailed(String),
     NotFound,
     IsDisabled(String),
-    CallPdsFailed(String),
+    RpcFailed(String),
+    MicroPayIncomplete(String),
     Unknown(String),
 }
 
@@ -33,10 +34,15 @@ impl IntoResponse for AppError {
                 "IsDisabled",
                 string_to_static_str(msg),
             ),
-            AppError::CallPdsFailed(msg) => (
+            AppError::RpcFailed(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "CallPdsFailed",
-                string_to_static_str(json!({"pds": msg}).to_string()),
+                "RpcFailed",
+                string_to_static_str(json!({"rpc": msg}).to_string()),
+            ),
+            AppError::MicroPayIncomplete(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "MicroPayIncomplete",
+                string_to_static_str(json!({"micro_pay": msg}).to_string()),
             ),
             AppError::Unknown(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

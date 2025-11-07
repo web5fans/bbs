@@ -38,28 +38,28 @@ pub(crate) async fn login_info(
         .to_string();
     let first = index_query(&state.pds, &repo, "firstItem")
         .await
-        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+        .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let first = first
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or(AppError::CallPdsFailed(first.to_string()))?;
+        .ok_or(AppError::RpcFailed(first.to_string()))?;
     let second = index_query(&state.pds, &repo, "secondItem")
         .await
-        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+        .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let second = second
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or(AppError::CallPdsFailed(second.to_string()))?;
+        .ok_or(AppError::RpcFailed(second.to_string()))?;
     let third = index_query(&state.pds, &repo, "thirdItem")
         .await
-        .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+        .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let third = third
         .pointer("/result/result")
         .cloned()
         .and_then(|i| i.as_u64())
-        .ok_or(AppError::CallPdsFailed(third.to_string()))?;
+        .ok_or(AppError::RpcFailed(third.to_string()))?;
 
     Ok(ok(json!({
         "firstItem": first,

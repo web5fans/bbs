@@ -18,6 +18,7 @@ pub(crate) mod record;
 pub(crate) mod reply;
 pub(crate) mod repo;
 pub(crate) mod section;
+pub(crate) mod tip;
 
 pub(crate) struct ToTimestamp;
 

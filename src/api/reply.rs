@@ -72,6 +72,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             (Reply::Table, Reply::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"reply\".\"uri\") as like_count"))
+        .expr(Expr::cust("(select sum(\"tip\".\"amount\") from \"tip\" where \"tip\".\"for_uri\" = \"reply\".\"uri\" and \"tip\".\"state\" = 1) as tip_count"))
         .expr(if let Some(viewer) =&query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"reply\".\"uri\" ) > 0) as liked"))
         } else {
@@ -130,6 +131,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
                 updated: row.updated,
                 created: row.created,
                 like_count: row.like_count.to_string(),
+                tip_count: row.tip_count.to_string(),
                 liked: row.liked,
             });
         }

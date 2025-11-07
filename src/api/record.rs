@@ -52,7 +52,7 @@ pub(crate) async fn create(
         auth.token(),
         &new_record.repo,
         &json!([{
-            "$type": "com.atproto.web5.directWrites#create",
+            "$type": "fans.web5.ckb.directWrites#create",
             "collection": new_record.value["$type"],
             "rkey": new_record.rkey,
             "value": new_record.value
@@ -62,16 +62,16 @@ pub(crate) async fn create(
         &new_record.root,
     )
     .await
-    .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+    .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     debug!("pds: {}", result);
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
-        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
+        .ok_or(AppError::RpcFailed(result.to_string()))?;
     let cid = result
         .pointer("/results/0/cid")
         .and_then(|cid| cid.as_str())
-        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
+        .ok_or(AppError::RpcFailed(result.to_string()))?;
     match record_type {
         NSID_POST => {
             Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
@@ -115,7 +115,7 @@ pub(crate) async fn update(
         auth.token(),
         &new_record.repo,
         &json!([{
-            "$type": "com.atproto.web5.directWrites#update",
+            "$type": "fans.web5.ckb.directWrites#update",
             "collection": new_record.value["$type"],
             "rkey": new_record.rkey,
             "value": new_record.value
@@ -125,16 +125,16 @@ pub(crate) async fn update(
         &new_record.root,
     )
     .await
-    .map_err(|e| AppError::CallPdsFailed(e.to_string()))?;
+    .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     debug!("pds: {}", result);
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
-        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
+        .ok_or(AppError::RpcFailed(result.to_string()))?;
     let cid = result
         .pointer("/results/0/cid")
         .and_then(|cid| cid.as_str())
-        .ok_or(AppError::CallPdsFailed(result.to_string()))?;
+        .ok_or(AppError::RpcFailed(result.to_string()))?;
     match record_type {
         NSID_POST => {
             Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;

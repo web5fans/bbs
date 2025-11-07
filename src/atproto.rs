@@ -95,7 +95,7 @@ pub async fn direct_writes(
     root: &Value,
 ) -> Result<Value> {
     let rsp = reqwest::Client::new()
-        .post(format!("{url}/xrpc/com.atproto.web5.directWrites"))
+        .post(format!("{url}/xrpc/fans.web5.ckb.directWrites"))
         .bearer_auth(auth)
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
@@ -124,13 +124,13 @@ pub async fn direct_writes(
 
 pub async fn index_query(url: &str, did: &str, item: &str) -> Result<Value> {
     let rsp = reqwest::Client::new()
-        .post(format!("{url}/xrpc/com.atproto.web5.indexQuery"))
+        .post(format!("{url}/xrpc/fans.web5.ckb.indexQuery"))
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
         .body(
             json!({
                 "index": {
-                    "$type": format!("com.atproto.web5.indexQuery#{}", item),
+                    "$type": format!("fans.web5.ckb.indexQuery#{}", item),
                     "did": did,
                 },
             })

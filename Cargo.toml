@@ -1,12 +1,16 @@
 [package]
 name = "bbs"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 authors = ["JLer <jlerxky@live.com>"]
 
 [dependencies]
 axum-extra = { version = "0.10", features = ["typed-header"] }
+base32 = "0.5"
 bs58 = "0.5"
+ckb-jsonrpc-types = "0.202"
+ckb-sdk = "4.4"
+ckb-types = "0.202"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 color-eyre = "0.6"
@@ -17,6 +21,7 @@ common_x = { version = "0.8", default-features = false, features = [
 hex = "0.4"
 k256 = "0.13"
 reqwest = { version = "0.12", features = ["json"] }
+rust_decimal = "1.39"
 sea-query = { version = "1.0.0-rc.14", default-features = false, features = [
     "audit",
     "backend-postgres",

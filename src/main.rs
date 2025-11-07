@@ -1,14 +1,17 @@
 mod api;
 mod atproto;
+mod ckb;
 mod error;
 mod indexer;
 mod lexicon;
+mod micro_pay;
 
 #[macro_use]
 extern crate tracing as logger;
 
 use std::time::Duration;
 
+use ckb_sdk::CkbRpcAsyncClient;
 use clap::Parser;
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::axum::routing::get;
@@ -17,18 +20,23 @@ use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 
+use crate::api::tip::check_tip_tx;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
+use crate::lexicon::tip::Tip;
 
 #[derive(Clone)]
 struct AppView {
     db: Pool<Postgres>,
     pds: String,
+    ckb_client: CkbRpcAsyncClient,
     indexer: String,
+    pay_url: String,
+    bbs_ckb_addr: String,
     whitelist: Vec<String>,
 }
 
@@ -43,6 +51,12 @@ pub struct Args {
     db_url: String,
     #[clap(short, long)]
     pds: String,
+    #[clap(short, long)]
+    ckb_url: String,
+    #[clap(short, long)]
+    bbs_ckb_addr: String,
+    #[clap(short, long)]
+    pay_url: String,
     #[clap(short, long)]
     indexer: String,
     #[clap(short, long, default_value = "")]
@@ -67,11 +81,15 @@ async fn main() -> Result<()> {
     Comment::init(&db).await?;
     Reply::init(&db).await?;
     Like::init(&db).await?;
+    Tip::init(&db).await?;
 
     let bbs = AppView {
         db,
         pds: args.pds.clone(),
+        ckb_client: CkbRpcAsyncClient::new(&args.ckb_url),
+        bbs_ckb_addr: args.bbs_ckb_addr.clone(),
         indexer: args.indexer.clone(),
+        pay_url: args.pay_url.clone(),
         whitelist: args
             .whitelist
             .split(',')
@@ -84,6 +102,9 @@ async fn main() -> Result<()> {
             })
             .collect(),
     };
+
+    // start check_tip_tx task
+    tokio::spawn(check_tip_tx(bbs.clone()));
 
     // api
     let router = Router::new()
@@ -101,6 +122,8 @@ async fn main() -> Result<()> {
         .route("/api/repo/profile", get(api::repo::profile))
         .route("/api/repo/login_info", get(api::repo::login_info))
         .route("/api/like/list", post(api::like::list))
+        .route("/api/tip/prepare", post(api::tip::prepare))
+        .route("/api/tip/transfer", post(api::tip::transfer))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);

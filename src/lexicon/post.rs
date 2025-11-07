@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
+use rust_decimal::Decimal;
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -219,6 +220,7 @@ impl Post {
         ])
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"post\" = \"post\".\"uri\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"post\".\"uri\") as like_count"))
+        .expr(Expr::cust("(select sum(\"tip\".\"amount\") from \"tip\" where \"tip\".\"for_uri\" = \"post\".\"uri\" and \"tip\".\"state\" = 1) as tip_count"))
         .expr(if let Some(viewer) = viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"post\".\"uri\" ) > 0) as liked"))
         } else {
@@ -254,6 +256,7 @@ pub struct PostRow {
     pub section: String,
     pub comment_count: i64,
     pub like_count: i64,
+    pub tip_count: Decimal,
     pub liked: bool,
 }
 
@@ -277,6 +280,7 @@ pub struct PostView {
     pub section: String,
     pub comment_count: String,
     pub like_count: String,
+    pub tip_count: String,
     pub liked: bool,
 }
 
@@ -301,6 +305,7 @@ impl PostView {
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
+            tip_count: row.tip_count.to_string(),
             liked: row.liked,
         }
     }
