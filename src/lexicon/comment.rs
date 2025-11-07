@@ -198,7 +198,7 @@ pub struct CommentRow {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
-    pub tip_count: Decimal,
+    pub tip_count: Option<Decimal>,
     pub liked: bool,
     pub reply_count: i64,
 }
@@ -234,7 +234,7 @@ impl CommentView {
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),
-            tip_count: row.tip_count.to_string(),
+            tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
             replies,
             liked: row.liked,
             reply_count: row.reply_count.to_string(),

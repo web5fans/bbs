@@ -3,6 +3,7 @@ use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
 };
+use rust_decimal::Decimal;
 use sea_query::{BinOper, Expr, ExprTrait, Func, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
@@ -131,7 +132,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
                 updated: row.updated,
                 created: row.created,
                 like_count: row.like_count.to_string(),
-                tip_count: row.tip_count.to_string(),
+                tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
                 liked: row.liked,
             });
         }

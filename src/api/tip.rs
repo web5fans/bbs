@@ -1,10 +1,11 @@
+use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
 };
 use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
-use sea_query::{BinOper, Expr, ExprTrait, PostgresQueryBuilder};
+use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -242,34 +243,46 @@ async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> 
         })
 }
 
+#[test]
+fn test() {
+    let a = chrono::Local::now();
+    let now = chrono::Local::now();
+    let five_minutes_ago = now - chrono::Duration::minutes(5);
+    println!("now: {}", now);
+    println!("five_minutes_ago: {}", five_minutes_ago);
+    assert!(a >= five_minutes_ago);
+}
+
 pub async fn check_tip_tx(state: AppView) -> Result<()> {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
     let (sql, values) = sea_query::Query::select()
-        .columns([(Tip::Table, Tip::Id), (Tip::Table, Tip::TxHash)])
+        .columns([
+            (Tip::Table, Tip::Id),
+            (Tip::Table, Tip::TxHash),
+            (Tip::Table, Tip::Created),
+        ])
         .from(Tip::Table)
         .and_where(Expr::col(Tip::State).eq(0))
-        .and_where(Expr::col(Tip::Created).binary(
-            BinOper::GreaterThan,
-            chrono::Local::now() - chrono::Duration::minutes(5),
-        ))
         .build_sqlx(PostgresQueryBuilder);
     info!("start check_tip_tx task");
     loop {
         interval.tick().await;
-        let rows: Option<Vec<(i32, Option<String>)>> = query_as_with(&sql, values.clone())
-            .fetch_all(&state.db)
-            .await
-            .map_err(|e| {
-                error!("{e}");
-                e
-            })
-            .ok();
+        #[allow(clippy::type_complexity)]
+        let rows: Option<Vec<(i32, Option<String>, DateTime<Local>)>> =
+            query_as_with(&sql, values.clone())
+                .fetch_all(&state.db)
+                .await
+                .map_err(|e| {
+                    error!("{e}");
+                    e
+                })
+                .ok();
         if let Some(rows) = rows {
-            for (id, tx_hash) in rows {
+            for (id, tx_hash, created) in rows {
                 if let Some(tx_hash) = tx_hash {
                     let tx_status = get_tx_status(&state.ckb_client, &tx_hash).await;
-                    debug!("tip id {} tx {} status: {:?}", id, tx_hash, tx_status);
                     if let Ok(tx_status) = tx_status {
+                        debug!("tip id {id} tx {tx_hash} status: {tx_status:?}");
                         match tx_status {
                             ckb_jsonrpc_types::Status::Committed => {
                                 let (sql, values) = sea_query::Query::update()
@@ -282,8 +295,26 @@ pub async fn check_tip_tx(state: AppView) -> Result<()> {
                             }
                             ckb_jsonrpc_types::Status::Pending => {}
                             ckb_jsonrpc_types::Status::Proposed => {}
-                            ckb_jsonrpc_types::Status::Unknown => {}
-                            ckb_jsonrpc_types::Status::Rejected => {}
+                            ckb_jsonrpc_types::Status::Unknown => {
+                                if (chrono::Local::now() - created) > chrono::Duration::minutes(3) {
+                                    let (sql, values) = sea_query::Query::update()
+                                        .table(Tip::Table)
+                                        .value(Tip::State, 2)
+                                        .and_where(Expr::col(Tip::Id).eq(id))
+                                        .build_sqlx(PostgresQueryBuilder);
+                                    sqlx::query_with(&sql, values).execute(&state.db).await.ok();
+                                    debug!("tip id {} tx {} marked as timeout", id, tx_hash);
+                                }
+                            }
+                            ckb_jsonrpc_types::Status::Rejected => {
+                                let (sql, values) = sea_query::Query::update()
+                                    .table(Tip::Table)
+                                    .value(Tip::State, 3)
+                                    .and_where(Expr::col(Tip::Id).eq(id))
+                                    .build_sqlx(PostgresQueryBuilder);
+                                sqlx::query_with(&sql, values).execute(&state.db).await.ok();
+                                debug!("tip id {} tx {} marked as rejected", id, tx_hash);
+                            }
                         }
                     }
                 }

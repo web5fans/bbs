@@ -256,7 +256,7 @@ pub struct PostRow {
     pub section: String,
     pub comment_count: i64,
     pub like_count: i64,
-    pub tip_count: Decimal,
+    pub tip_count: Option<Decimal>,
     pub liked: bool,
 }
 
@@ -305,7 +305,7 @@ impl PostView {
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
-            tip_count: row.tip_count.to_string(),
+            tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
             liked: row.liked,
         }
     }

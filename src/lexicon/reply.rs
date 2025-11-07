@@ -198,7 +198,7 @@ pub struct ReplyRow {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
-    pub tip_count: Decimal,
+    pub tip_count: Option<Decimal>,
     pub liked: bool,
 }
 
