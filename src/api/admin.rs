@@ -8,6 +8,7 @@ use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::query_as_with;
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
     lexicon::{comment::Comment, post::Post, reply::Reply, section::Section},
 };
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize)]
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct UpdateTagParams {
     pub nsid: String,
@@ -29,7 +30,7 @@ pub(crate) struct UpdateTagParams {
     pub reasons_for_disabled: Option<String>,
 }
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize)]
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct UpdateTagBody {
     pub params: UpdateTagParams,
@@ -39,6 +40,7 @@ pub(crate) struct UpdateTagBody {
     pub signed_bytes: String,
 }
 
+#[utoipa::path(post, path = "/api/admin/update_tag")]
 pub(crate) async fn update_tag(
     State(state): State<AppView>,
     Json(body): Json<UpdateTagBody>,

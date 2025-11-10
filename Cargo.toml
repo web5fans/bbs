@@ -46,6 +46,8 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }
 tracing = "0.1"
+utoipa = { version = "5.4", features = ["axum_extras"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
 validator = { version = "0.20", features = ["derive"] }
 
 [lints.clippy]

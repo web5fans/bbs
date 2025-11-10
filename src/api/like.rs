@@ -8,6 +8,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::query_as_with;
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
     lexicon::like::{Like, LikeRow, LikeView},
 };
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct LikeQuery {
     pub repo: Option<String>,
@@ -37,6 +38,7 @@ impl Default for LikeQuery {
     }
 }
 
+#[utoipa::path(post, path = "/api/like/list")]
 pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<LikeQuery>,

@@ -31,6 +31,7 @@ pub async fn payment_transfer(url: &str, body: &Value) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
+#[allow(dead_code)]
 pub async fn payment(url: &str, payment_id: &str) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/api/payment/{payment_id}"))
@@ -44,6 +45,7 @@ pub async fn payment(url: &str, payment_id: &str) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
+#[allow(dead_code)]
 pub async fn payment_sender(url: &str, sender: &str) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/api/payment/sender/{sender}"))
@@ -57,6 +59,7 @@ pub async fn payment_sender(url: &str, sender: &str) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
+#[allow(dead_code)]
 pub async fn payment_receiver(url: &str, receiver: &str) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/api/payment/receiver/{receiver}"))

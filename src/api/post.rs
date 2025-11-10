@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::eyre::eyre;
 use common_x::restful::{
     axum::{
         Json,
@@ -12,8 +12,9 @@ use common_x::restful::{
 use sea_query::{BinOper, Expr, ExprTrait, Func, IntoColumnRef, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 use sqlx::{Executor, query_as_with, query_with};
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 use crate::{
@@ -27,7 +28,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct PostQuery {
     pub section_id: Option<String>,
@@ -53,6 +54,7 @@ impl Default for PostQuery {
     }
 }
 
+#[utoipa::path(post, path = "/api/post/list")]
 pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,
@@ -138,13 +140,14 @@ pub(crate) async fn list(
     Ok(ok(result))
 }
 
-#[derive(Debug, Default, Validate, Deserialize)]
+#[derive(Debug, Default, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct TopQuery {
     pub section_id: String,
     pub viewer: Option<String>,
 }
 
+#[utoipa::path(post, path = "/api/post/top")]
 pub(crate) async fn top(
     State(state): State<AppView>,
     Json(query): Json<TopQuery>,
@@ -216,18 +219,20 @@ pub(crate) async fn top(
     })))
 }
 
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub(crate) struct DetailQuery {
+    pub uri: String,
+    pub viewer: Option<String>,
+}
+
+#[utoipa::path(get, path = "/api/post/detail", params(DetailQuery))]
 pub(crate) async fn detail(
     State(state): State<AppView>,
-    Query(query): Query<Value>,
+    Query(query): Query<DetailQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let uri = query
-        .get("uri")
-        .and_then(|u| u.as_str())
-        .ok_or_eyre("uri not be null")?;
-    let viewer = query
-        .get("viewer")
-        .and_then(|u| u.as_str())
-        .map(|s| s.to_string());
+    let uri = query.uri;
+    let viewer = query.viewer;
 
     let (sql, values) = Post::build_select(viewer.clone())
         .and_where(Expr::col(Post::Uri).eq(uri))
@@ -279,6 +284,7 @@ pub(crate) async fn detail(
     }
 }
 
+#[utoipa::path(post, path = "/api/post/commented")]
 pub(crate) async fn commented(
     State(state): State<AppView>,
     Json(query): Json<PostQuery>,

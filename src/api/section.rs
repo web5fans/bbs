@@ -1,4 +1,4 @@
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::eyre::eyre;
 use common_x::restful::{
     axum::{
         extract::{Query, State},
@@ -8,8 +8,11 @@ use common_x::restful::{
 };
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
-use serde_json::{Value, json};
+use serde::Deserialize;
+use serde_json::json;
 use sqlx::query_as_with;
+use utoipa::IntoParams;
+use validator::Validate;
 
 use crate::{
     AppView,
@@ -18,26 +21,29 @@ use crate::{
     lexicon::section::{Section, SectionRowSample, SectionView},
 };
 
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct SectionQuery {
+    pub repo: Option<String>,
+}
+
+#[utoipa::path(get, path = "/api/section/list", params(SectionQuery))]
 pub(crate) async fn list(
     State(state): State<AppView>,
-    Query(query): Query<Value>,
+    Query(query): Query<SectionQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = Section::build_select()
-        .and_where(
-            if let Some(Some(repo)) = query.get("repo").map(|r| r.as_str()) {
-                Expr::col((Section::Table, Section::Permission))
-                    .eq(0)
-                    .or(Expr::col((Section::Table, Section::Owner)).eq(repo))
-                    .or(Expr::Custom(
-                        format!(
-                            "'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))"
-                        )
+        .and_where(if let Some(repo) = query.repo {
+            Expr::col((Section::Table, Section::Permission))
+                .eq(0)
+                .or(Expr::col((Section::Table, Section::Owner)).eq(&repo))
+                .or(Expr::Custom(
+                    format!("'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))")
                         .into(),
-                    ))
-            } else {
-                Expr::col((Section::Table, Section::Permission)).eq(0)
-            },
-        )
+                ))
+        } else {
+            Expr::col((Section::Table, Section::Permission)).eq(0)
+        })
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
@@ -69,15 +75,18 @@ pub(crate) async fn list(
     Ok(ok(views))
 }
 
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct SectionIdQuery {
+    pub id: i32,
+}
+
+#[utoipa::path(get, path = "/api/section/detail", params(SectionIdQuery))]
 pub(crate) async fn detail(
     State(state): State<AppView>,
-    Query(query): Query<Value>,
+    Query(query): Query<SectionIdQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let id: i32 = query
-        .get("id")
-        .and_then(|id| id.as_str())
-        .ok_or_eyre("id not be null")?
-        .parse()?;
+    let id: i32 = query.id;
 
     let (sql, values) = Section::build_select()
         .and_where(Expr::col(Section::Id).eq(id))

@@ -10,10 +10,12 @@ use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::query_as_with;
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
     AppView,
+    api::build_author,
     atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY},
     ckb::{get_ckb_addr_by_did, get_tx_status},
     error::AppError,
@@ -28,7 +30,7 @@ use crate::{
     micro_pay,
 };
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize)]
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct TipParams {
     pub nsid: String,
@@ -37,7 +39,7 @@ pub(crate) struct TipParams {
     pub amount: String,
 }
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize)]
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct TipBody {
     pub params: TipParams,
@@ -47,6 +49,7 @@ pub(crate) struct TipBody {
     pub signed_bytes: String,
 }
 
+#[utoipa::path(post, path = "/api/tip/prepare")]
 pub(crate) async fn prepare(
     State(state): State<AppView>,
     Json(body): Json<TipBody>,
@@ -55,7 +58,7 @@ pub(crate) async fn prepare(
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     validate_signed(&state.indexer, &body).await?;
 
-    let (did, section_ckb_addr) = match body.params.nsid.as_str() {
+    let (receiver_did, section_ckb_addr) = match body.params.nsid.as_str() {
         NSID_POST => {
             let (sql, values) = sea_query::Query::select()
                 .columns([(Post::Table, Post::Repo)])
@@ -123,7 +126,7 @@ pub(crate) async fn prepare(
         }
     };
 
-    let receiver = get_ckb_addr_by_did(&state.ckb_client, &did)
+    let receiver = get_ckb_addr_by_did(&state.ckb_client, &receiver_did)
         .await
         .map_err(|e| {
             debug!("get ckb addr by did failed: {e}");
@@ -135,7 +138,8 @@ pub(crate) async fn prepare(
         sender_did: body.did.clone(),
         sender: body.params.sender.clone(),
         receiver,
-        amount: body.params.amount,
+        receiver_did,
+        amount: body.params.amount.parse::<i64>()?,
         info: format!("{}/{}", body.params.nsid, body.params.uri),
         for_uri: body.params.uri.clone(),
         state: 0,
@@ -150,8 +154,10 @@ pub(crate) async fn prepare(
         &state.pay_url,
         &json!({
             "sender": &tip_row.sender,
+            "sender_did": &tip_row.sender_did,
             "receiver": &tip_row.receiver,
-            "amount": &tip_row.amount.parse::<u64>()?,
+            "receiver_did": &tip_row.receiver_did,
+            "amount": &tip_row.amount,
             "info": &tip_row.info,
             "splitReceivers": [
                 {
@@ -168,7 +174,9 @@ pub(crate) async fn prepare(
     .await?;
 
     if let Some(err) = result.get("error") {
-        return Err(AppError::MicroPayIncomplete(err.to_string()));
+        return Err(AppError::MicroPayIncomplete(
+            result.get("code").unwrap_or(err).to_string(),
+        ));
     }
 
     tip_row.tx_hash = result
@@ -178,11 +186,14 @@ pub(crate) async fn prepare(
 
     tip_row.id = Tip::insert(&state.db, &tip_row).await?;
 
+    let author = build_author(&state, &tip_row.sender_did).await;
     let tip = TipView {
         id: tip_row.id.to_string(),
         sender_did: tip_row.sender_did.clone(),
+        sender_author: author,
         sender: tip_row.sender.clone(),
         receiver: tip_row.receiver.clone(),
+        receiver_did: tip_row.receiver_did.clone(),
         amount: tip_row.amount.to_string(),
         info: tip_row.info.clone(),
         for_uri: tip_row.for_uri.clone(),
@@ -198,12 +209,106 @@ pub(crate) async fn prepare(
     })))
 }
 
+#[utoipa::path(post, path = "/api/tip/transfer")]
 pub(crate) async fn transfer(
     State(state): State<AppView>,
     Json(body): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let result = micro_pay::payment_transfer(&state.pay_url, &body).await?;
     Ok(ok(result))
+}
+
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct TipsQuery {
+    pub for_uri: String,
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+}
+
+impl Default for TipsQuery {
+    fn default() -> Self {
+        Self {
+            for_uri: String::new(),
+            page: 1,
+            per_page: 20,
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/tip/list")]
+pub(crate) async fn list_by_for(
+    State(state): State<AppView>,
+    Json(body): Json<TipsQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let (sql, values) = sea_query::Query::select()
+        .columns([
+            (Tip::Table, Tip::Id),
+            (Tip::Table, Tip::SenderDid),
+            (Tip::Table, Tip::Sender),
+            (Tip::Table, Tip::Receiver),
+            (Tip::Table, Tip::Amount),
+            (Tip::Table, Tip::Info),
+            (Tip::Table, Tip::ForUri),
+            (Tip::Table, Tip::State),
+            (Tip::Table, Tip::TxHash),
+            (Tip::Table, Tip::Updated),
+            (Tip::Table, Tip::Created),
+        ])
+        .from(Tip::Table)
+        .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
+        .and_where(Expr::col(Tip::State).eq(1))
+        .order_by((Tip::Table, Tip::Created), sea_query::Order::Desc)
+        .offset(body.per_page * (body.page - 1))
+        .limit(body.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+    let rows: Vec<TipRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| {
+            debug!("exec sql failed: {e}");
+            AppError::NotFound
+        })?;
+    let mut result: Vec<TipView> = Vec::new();
+    for tip_row in &rows {
+        let author = build_author(&state, &tip_row.sender_did).await;
+        result.push(TipView {
+            id: tip_row.id.to_string(),
+            sender_did: tip_row.sender_did.clone(),
+            sender_author: author,
+            sender: tip_row.sender.clone(),
+            receiver: tip_row.receiver.clone(),
+            receiver_did: tip_row.receiver_did.clone(),
+            amount: tip_row.amount.to_string(),
+            info: tip_row.info.clone(),
+            for_uri: tip_row.for_uri.clone(),
+            state: tip_row.state.to_string(),
+            tx_hash: tip_row.tx_hash.clone(),
+            updated: tip_row.updated,
+            created: tip_row.created,
+        });
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Tip::Table, Tip::Id)).count())
+        .from(Tip::Table)
+        .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
+        .and_where(Expr::col(Tip::State).eq(1))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    Ok(ok(json!({
+        "tips": result,
+        "page": body.page,
+        "per_page": body.per_page,
+        "total":  total.0
+    })))
 }
 
 async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> {

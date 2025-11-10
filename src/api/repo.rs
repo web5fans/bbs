@@ -1,4 +1,3 @@
-use color_eyre::eyre::OptionExt;
 use common_x::restful::{
     axum::{
         extract::{Query, State},
@@ -6,37 +5,38 @@ use common_x::restful::{
     },
     ok,
 };
+use serde::Deserialize;
 use serde_json::{Value, json};
+use utoipa::IntoParams;
+use validator::Validate;
 
 use crate::{AppView, api::build_author, atproto::index_query, error::AppError};
 
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct ProfileQuery {
+    pub repo: String,
+}
+
+#[utoipa::path(get, path = "/api/repo/profile", params(ProfileQuery))]
 pub(crate) async fn profile(
     State(state): State<AppView>,
-    Query(query): Query<Value>,
+    Query(query): Query<ProfileQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let repo: String = query
-        .get("repo")
-        .and_then(|repo| repo.as_str())
-        .ok_or_eyre("repo not be null")?
-        .to_string();
-    let mut author = build_author(&state, &repo).await;
-    if state.whitelist.is_empty() || state.whitelist.contains(&repo) {
+    let mut author = build_author(&state, &query.repo).await;
+    if state.whitelist.is_empty() || state.whitelist.contains(&query.repo) {
         author["highlight"] = Value::String("beta".to_owned());
     }
 
     Ok(ok(author))
 }
 
+#[utoipa::path(get, path = "/api/repo/login_info", params(ProfileQuery))]
 pub(crate) async fn login_info(
     State(state): State<AppView>,
-    Query(query): Query<Value>,
+    Query(query): Query<ProfileQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let repo: String = query
-        .get("repo")
-        .and_then(|repo| repo.as_str())
-        .ok_or_eyre("repo not be null")?
-        .to_string();
-    let first = index_query(&state.pds, &repo, "firstItem")
+    let first = index_query(&state.pds, &query.repo, "firstItem")
         .await
         .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let first = first
@@ -44,7 +44,7 @@ pub(crate) async fn login_info(
         .cloned()
         .and_then(|i| i.as_u64())
         .ok_or(AppError::RpcFailed(first.to_string()))?;
-    let second = index_query(&state.pds, &repo, "secondItem")
+    let second = index_query(&state.pds, &query.repo, "secondItem")
         .await
         .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let second = second
@@ -52,7 +52,7 @@ pub(crate) async fn login_info(
         .cloned()
         .and_then(|i| i.as_u64())
         .ok_or(AppError::RpcFailed(second.to_string()))?;
-    let third = index_query(&state.pds, &repo, "thirdItem")
+    let third = index_query(&state.pds, &query.repo, "thirdItem")
         .await
         .map_err(|e| AppError::RpcFailed(e.to_string()))?;
     let third = third

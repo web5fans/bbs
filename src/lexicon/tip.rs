@@ -3,6 +3,7 @@ use color_eyre::{Result, eyre::eyre};
 use sea_query::{ColumnDef, Expr, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
+use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, Row, query};
 
 #[derive(Iden)]
@@ -12,6 +13,7 @@ pub enum Tip {
     SenderDid,
     Sender,
     Receiver,
+    ReceiverDid,
     Amount,
     Info,
     ForUri,
@@ -41,6 +43,12 @@ impl Tip {
             )
             .col(ColumnDef::new(Self::Sender).string().not_null())
             .col(ColumnDef::new(Self::Receiver).string().not_null())
+            .col(
+                ColumnDef::new(Self::ReceiverDid)
+                    .string()
+                    .not_null()
+                    .default("".to_string()),
+            )
             .col(ColumnDef::new(Self::Amount).big_integer().not_null())
             .col(ColumnDef::new(Self::Info).string().not_null())
             .col(
@@ -69,13 +77,7 @@ impl Tip {
         let sql = sea_query::Table::alter()
             .table(Self::Table)
             .add_column_if_not_exists(
-                ColumnDef::new(Self::SenderDid)
-                    .string()
-                    .not_null()
-                    .default("".to_string()),
-            )
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::ForUri)
+                ColumnDef::new(Self::ReceiverDid)
                     .string()
                     .not_null()
                     .default("".to_string()),
@@ -92,6 +94,7 @@ impl Tip {
                 Self::SenderDid,
                 Self::Sender,
                 Self::Receiver,
+                Self::ReceiverDid,
                 Self::Amount,
                 Self::Info,
                 Self::ForUri,
@@ -104,7 +107,8 @@ impl Tip {
                 row.sender_did.clone().into(),
                 row.sender.clone().into(),
                 row.receiver.clone().into(),
-                row.amount.parse::<u64>()?.into(),
+                row.receiver_did.clone().into(),
+                row.amount.into(),
                 row.info.clone().into(),
                 row.for_uri.clone().into(),
                 row.state.into(),
@@ -130,7 +134,8 @@ pub struct TipRow {
     pub sender_did: String,
     pub sender: String,
     pub receiver: String,
-    pub amount: String,
+    pub receiver_did: String,
+    pub amount: i64,
     pub info: String,
     pub for_uri: String,
     pub state: i32,
@@ -144,8 +149,10 @@ pub struct TipRow {
 pub struct TipView {
     pub id: String,
     pub sender_did: String,
+    pub sender_author: Value,
     pub sender: String,
     pub receiver: String,
+    pub receiver_did: String,
     pub amount: String,
     pub info: String,
     pub for_uri: String,

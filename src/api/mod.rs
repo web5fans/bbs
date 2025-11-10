@@ -3,6 +3,10 @@ use sea_query::{BinOper, Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde_json::{Value, json};
 use sqlx::query_as_with;
+use utoipa::{
+    Modify, OpenApi,
+    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+};
 
 use crate::{
     AppView,
@@ -19,6 +23,57 @@ pub(crate) mod reply;
 pub(crate) mod repo;
 pub(crate) mod section;
 pub(crate) mod tip;
+
+#[derive(OpenApi, Debug, Clone, Copy)]
+#[openapi(
+    modifiers(&SecurityAddon),
+    paths(
+        admin::update_tag,
+        record::create,
+        record::update,
+        section::list,
+        section::detail,
+        post::list,
+        post::top,
+        post::detail,
+        post::commented,
+        comment::list,
+        reply::list,
+        repo::profile,
+        repo::login_info,
+        like::list,
+        tip::prepare,
+        tip::transfer,
+        tip::list_by_for,
+    ),
+    components(schemas(
+        admin::UpdateTagParams,
+        admin::UpdateTagBody,
+        record::NewRecord,
+        post::PostQuery,
+        post::TopQuery,
+        comment::CommentQuery,
+        reply::ReplyQuery,
+        like::LikeQuery,
+        tip::TipParams,
+        tip::TipBody,
+        tip::TipsQuery,
+    ))
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "Authorization",
+                SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("Authorization"))),
+            )
+        }
+    }
+}
 
 pub(crate) struct ToTimestamp;
 

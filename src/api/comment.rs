@@ -8,6 +8,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::query_as_with;
+use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::{
@@ -20,7 +21,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct CommentQuery {
     pub post: String,
@@ -42,6 +43,7 @@ impl Default for CommentQuery {
     }
 }
 
+#[utoipa::path(post, path = "/api/comment/list")]
 pub(crate) async fn list(
     State(state): State<AppView>,
     Json(query): Json<CommentQuery>,

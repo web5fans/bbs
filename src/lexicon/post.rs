@@ -335,6 +335,7 @@ pub struct PostRepliedView {
     pub section: String,
     pub comment_count: String,
     pub like_count: String,
+    pub tip_count: String,
     pub liked: bool,
 }
 
@@ -363,6 +364,7 @@ impl PostRepliedView {
             section: row.section,
             comment_count: row.comment_count.to_string(),
             like_count: row.like_count.to_string(),
+            tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
             liked: row.liked,
         }
     }

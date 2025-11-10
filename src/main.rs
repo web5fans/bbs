@@ -19,7 +19,10 @@ use common_x::restful::axum::{Router, routing::post};
 use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
+use utoipa::OpenApi;
+use utoipa_scalar::{Scalar, Servable};
 
+use crate::api::ApiDoc;
 use crate::api::tip::check_tip_tx;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
@@ -108,6 +111,7 @@ async fn main() -> Result<()> {
 
     // api
     let router = Router::new()
+        .merge(Scalar::with_url("/apidoc", ApiDoc::openapi()))
         .route("/api/admin/update_tag", post(api::admin::update_tag))
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
@@ -124,6 +128,7 @@ async fn main() -> Result<()> {
         .route("/api/like/list", post(api::like::list))
         .route("/api/tip/prepare", post(api::tip::prepare))
         .route("/api/tip/transfer", post(api::tip::transfer))
+        .route("/api/tip/list", post(api::tip::list_by_for))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
