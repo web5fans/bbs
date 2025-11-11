@@ -249,6 +249,7 @@ pub(crate) async fn list_by_for(
             (Tip::Table, Tip::SenderDid),
             (Tip::Table, Tip::Sender),
             (Tip::Table, Tip::Receiver),
+            (Tip::Table, Tip::ReceiverDid),
             (Tip::Table, Tip::Amount),
             (Tip::Table, Tip::Info),
             (Tip::Table, Tip::ForUri),
