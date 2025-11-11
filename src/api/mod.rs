@@ -45,6 +45,7 @@ pub(crate) mod tip;
         tip::prepare,
         tip::transfer,
         tip::list_by_for,
+        tip::expense_details,
     ),
     components(schemas(
         admin::UpdateTagParams,
@@ -58,6 +59,7 @@ pub(crate) mod tip;
         tip::TipParams,
         tip::TipBody,
         tip::TipsQuery,
+        tip::DetailQuery,
     ))
 )]
 pub struct ApiDoc;
@@ -94,7 +96,6 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .and_where(Expr::col(Post::Repo).eq(repo))
         .and_where(Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0))
         .build_sqlx(PostgresQueryBuilder);
-    debug!("post count exec sql: {sql}");
     let post_count_row: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
@@ -106,7 +107,6 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .from(Comment::Table)
         .and_where(Expr::col(Comment::Repo).eq(repo))
         .build_sqlx(PostgresQueryBuilder);
-    debug!("comment count exec sql: {sql}");
     let comment_count_row: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
@@ -118,7 +118,6 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .from(Like::Table)
         .and_where(Expr::col(Like::To).eq(repo))
         .build_sqlx(PostgresQueryBuilder);
-    debug!("like count exec sql: {sql}");
     let like_count_row: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await

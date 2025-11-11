@@ -6,6 +6,14 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, Row, query};
 
+#[derive(Debug, Clone, Copy)]
+pub enum TipState {
+    Prepared = 0,
+    Committed = 1,
+    Timeout = 2,
+    Rejected = 3,
+}
+
 #[derive(Iden)]
 pub enum Tip {
     Table,
@@ -74,16 +82,6 @@ impl Tip {
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
 
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::ReceiverDid)
-                    .string()
-                    .not_null()
-                    .default("".to_string()),
-            )
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await.ok();
         Ok(())
     }
 
@@ -125,14 +123,34 @@ impl Tip {
             .and_then(|r| r.try_get(0))
             .map_err(|e| eyre!(e))
     }
+
+    pub fn build_select() -> sea_query::SelectStatement {
+        sea_query::Query::select()
+            .columns([
+                (Self::Table, Self::Id),
+                (Self::Table, Self::Sender),
+                (Self::Table, Self::SenderDid),
+                (Self::Table, Self::Receiver),
+                (Self::Table, Self::ReceiverDid),
+                (Self::Table, Self::Amount),
+                (Self::Table, Self::Info),
+                (Self::Table, Self::ForUri),
+                (Self::Table, Self::State),
+                (Self::Table, Self::TxHash),
+                (Self::Table, Self::Updated),
+                (Self::Table, Self::Created),
+            ])
+            .from(Self::Table)
+            .take()
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
 #[allow(dead_code)]
 pub struct TipRow {
     pub id: i32,
-    pub sender_did: String,
     pub sender: String,
+    pub sender_did: String,
     pub receiver: String,
     pub receiver_did: String,
     pub amount: i64,
@@ -148,14 +166,34 @@ pub struct TipRow {
 #[allow(dead_code)]
 pub struct TipView {
     pub id: String,
+    pub sender: String,
     pub sender_did: String,
     pub sender_author: Value,
-    pub sender: String,
     pub receiver: String,
     pub receiver_did: String,
     pub amount: String,
     pub info: String,
     pub for_uri: String,
+    pub state: String,
+    pub tx_hash: Option<String>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+}
+
+#[derive(Debug, Serialize)]
+#[allow(dead_code)]
+pub struct TipDetailView {
+    pub id: String,
+    pub sender: String,
+    pub sender_did: String,
+    pub sender_author: Value,
+    pub receiver: String,
+    pub receiver_did: String,
+    pub receiver_author: Value,
+    pub amount: String,
+    pub info: String,
+    pub for_uri: String,
+    pub source: Value,
     pub state: String,
     pub tx_hash: Option<String>,
     pub updated: DateTime<Local>,

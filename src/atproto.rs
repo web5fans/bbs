@@ -7,6 +7,8 @@ pub const NSID_POST: &str = "app.bbs.post";
 pub const NSID_COMMENT: &str = "app.bbs.comment";
 pub const NSID_REPLY: &str = "app.bbs.reply";
 pub const NSID_LIKE: &str = "app.bbs.like";
+pub const NSID_SECTION: &str = "app.bbs.section";
+pub const NSID_COMMUNITY: &str = "app.bbs.community";
 pub const NSID_PROFILE: &str = "app.actor.profile";
 
 #[allow(dead_code)]

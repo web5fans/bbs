@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::eyre};
-use sea_query::{ColumnDef, ColumnType, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
+use sea_query::{ColumnDef, ColumnType, Expr, ExprTrait, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{Executor, Pool, Postgres, query, query_as_with, query_with};
+use sqlx::{Executor, Pool, Postgres, query, query_as_with};
 
 #[derive(Iden)]
 pub enum Section {
@@ -64,46 +64,6 @@ impl Section {
             )
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
-
-        let sql = sea_query::Table::alter()
-            .table(Self::Table)
-            .add_column_if_not_exists(
-                ColumnDef::new(Self::CkbAddr)
-                    .string()
-                    .not_null()
-                    .default("".to_string()),
-            )
-            .build(PostgresQueryBuilder);
-        db.execute(query(&sql)).await.ok();
-
-        let (sql, values) = sea_query::Query::insert()
-            .into_table(Self::Table)
-            .columns([Self::Id, Self::Name, Self::Permission, Self::CkbAddr])
-            .values_panic([
-                0.into(),
-                "公告".into(),
-                1.into(),
-                "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqwh4aqlqjdznv5jmnazqycth64l348jdrscjrd2r".into(),
-            ])
-            .values_panic([
-                1.into(),
-                "Web5技术讨论".into(),
-                0.into(),
-                "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqtj3yntzm8mvpxw8aghutnl65uzuv964zszzzq6a".into(),
-            ])
-            .values_panic([
-                2.into(),
-                "CKB RFC".into(),
-                0.into(),
-                "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvrxaf5j2jyhdptzg8n45qc5ul642m3uaq80d0kn".into(),
-            ])
-            .on_conflict(
-                OnConflict::column(Self::Id)
-                    .update_columns([Self::Name, Self::Permission, Self::CkbAddr])
-                    .to_owned(),
-            )
-            .build_sqlx(PostgresQueryBuilder);
-        db.execute(query_with(&sql, values)).await?;
 
         Ok(())
     }

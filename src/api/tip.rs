@@ -5,7 +5,7 @@ use common_x::restful::{
     ok,
 };
 use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
-use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
+use sea_query::{BinOper, Expr, ExprTrait, Func, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -15,8 +15,8 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::build_author,
-    atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY},
+    api::{ToTimestamp, build_author},
+    atproto::{NSID_COMMENT, NSID_COMMUNITY, NSID_POST, NSID_REPLY, NSID_SECTION},
     ckb::{get_ckb_addr_by_did, get_tx_status},
     error::AppError,
     indexer::did_document,
@@ -25,7 +25,7 @@ use crate::{
         post::Post,
         reply::Reply,
         section::Section,
-        tip::{Tip, TipRow, TipView},
+        tip::{Tip, TipDetailView, TipRow, TipState, TipView},
     },
     micro_pay,
 };
@@ -142,7 +142,7 @@ pub(crate) async fn prepare(
         amount: body.params.amount.parse::<i64>()?,
         info: format!("{}/{}", body.params.nsid, body.params.uri),
         for_uri: body.params.uri.clone(),
-        state: 0,
+        state: TipState::Prepared as i32,
         tx_hash: None,
         updated: chrono::Local::now(),
         created: chrono::Local::now(),
@@ -243,24 +243,9 @@ pub(crate) async fn list_by_for(
     State(state): State<AppView>,
     Json(body): Json<TipsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Tip::Table, Tip::Id),
-            (Tip::Table, Tip::SenderDid),
-            (Tip::Table, Tip::Sender),
-            (Tip::Table, Tip::Receiver),
-            (Tip::Table, Tip::ReceiverDid),
-            (Tip::Table, Tip::Amount),
-            (Tip::Table, Tip::Info),
-            (Tip::Table, Tip::ForUri),
-            (Tip::Table, Tip::State),
-            (Tip::Table, Tip::TxHash),
-            (Tip::Table, Tip::Updated),
-            (Tip::Table, Tip::Created),
-        ])
-        .from(Tip::Table)
+    let (sql, values) = Tip::build_select()
         .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
-        .and_where(Expr::col(Tip::State).eq(1))
+        .and_where(Expr::col(Tip::State).eq(TipState::Committed as i32))
         .order_by((Tip::Table, Tip::Created), sea_query::Order::Desc)
         .offset(body.per_page * (body.page - 1))
         .limit(body.per_page)
@@ -296,7 +281,7 @@ pub(crate) async fn list_by_for(
         .expr(Expr::col((Tip::Table, Tip::Id)).count())
         .from(Tip::Table)
         .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
-        .and_where(Expr::col(Tip::State).eq(1))
+        .and_where(Expr::col(Tip::State).eq(TipState::Committed as i32))
         .build_sqlx(PostgresQueryBuilder);
 
     let total: (i64,) = query_as_with(&sql, values.clone())
@@ -308,6 +293,256 @@ pub(crate) async fn list_by_for(
         "tips": result,
         "page": body.page,
         "per_page": body.per_page,
+        "total":  total.0
+    })))
+}
+
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct DetailQuery {
+    pub start: Option<String>,
+    pub end: Option<String>,
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+    pub sender_did: String,
+}
+
+impl Default for DetailQuery {
+    fn default() -> Self {
+        Self {
+            start: None,
+            end: None,
+            page: 1,
+            per_page: 20,
+            sender_did: String::new(),
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/tip/expense_details")]
+pub(crate) async fn expense_details(
+    State(state): State<AppView>,
+    Json(query): Json<DetailQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    query
+        .validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    let (sql, values) = Tip::build_select()
+        .and_where(Expr::col(Tip::SenderDid).eq(&query.sender_did))
+        .and_where_option(
+            query
+                .start
+                .as_ref()
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Tip::Table, Tip::Created)).binary(
+                        BinOper::GreaterThanOrEqual,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
+        .and_where_option(
+            query
+                .end
+                .as_ref()
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Tip::Table, Tip::Created)).binary(
+                        BinOper::SmallerThanOrEqual,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
+        .and_where(
+            Expr::col(Tip::State)
+                .eq(TipState::Prepared as i32)
+                .or(Expr::col(Tip::State).eq(TipState::Committed as i32)),
+        )
+        .order_by(Tip::Created, Order::Desc)
+        .offset(query.per_page * (query.page - 1))
+        .limit(query.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<TipRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| {
+            debug!("exec sql failed: {e}");
+            AppError::NotFound
+        })?;
+    let mut result: Vec<TipDetailView> = Vec::new();
+    for tip_row in &rows {
+        let sender_author = build_author(&state, &tip_row.sender_did).await;
+        let receiver_author = build_author(&state, &tip_row.receiver_did).await;
+        let (nsid, uri) = tip_row.info.split_once("/").unwrap_or(("", ""));
+        let source = match nsid {
+            NSID_POST => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([(Post::Table, Post::Title)])
+                    .from(Post::Table)
+                    .and_where(Expr::col(Post::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String,) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "title": row.0,
+                })
+            }
+            NSID_COMMENT => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([
+                        (Comment::Table, Comment::Text),
+                        (Comment::Table, Comment::Post),
+                    ])
+                    .from(Comment::Table)
+                    .and_where(Expr::col(Comment::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String, String) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "post": row.1,
+                    "text": row.0,
+                })
+            }
+            NSID_REPLY => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([
+                        (Reply::Table, Reply::Text),
+                        (Reply::Table, Reply::Post),
+                        (Reply::Table, Reply::Comment),
+                        (Reply::Table, Reply::To),
+                    ])
+                    .from(Reply::Table)
+                    .and_where(Expr::col(Reply::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String, String, String, String) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "text": row.0,
+                    "post": row.1,
+                    "comment": row.2,
+                    "to": row.3,
+                })
+            }
+            NSID_SECTION => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([(Section::Table, Section::Name)])
+                    .from(Section::Table)
+                    .and_where(Expr::col(Section::Id).eq(uri.parse::<i32>().unwrap_or(0)))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (i32, String) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "id": uri,
+                    "name": row.0,
+                })
+            }
+            NSID_COMMUNITY => {
+                json!({
+                    "nsid": nsid,
+                    "name": "BBS 社区",
+                })
+            }
+            _ => {
+                continue;
+            }
+        };
+        result.push(TipDetailView {
+            id: tip_row.id.to_string(),
+            sender_did: tip_row.sender_did.clone(),
+            sender_author,
+            sender: tip_row.sender.clone(),
+            receiver: tip_row.receiver.clone(),
+            receiver_did: tip_row.receiver_did.clone(),
+            receiver_author,
+            amount: tip_row.amount.to_string(),
+            info: tip_row.info.clone(),
+            for_uri: tip_row.for_uri.clone(),
+            state: tip_row.state.to_string(),
+            tx_hash: tip_row.tx_hash.clone(),
+            updated: tip_row.updated,
+            created: tip_row.created,
+            source,
+        });
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Tip::Table, Tip::Id)).count())
+        .from(Tip::Table)
+        .and_where(Expr::col(Tip::SenderDid).eq(&query.sender_did))
+        .and_where_option(
+            query
+                .start
+                .as_ref()
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Tip::Table, Tip::Created)).binary(
+                        BinOper::GreaterThanOrEqual,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
+        .and_where_option(
+            query
+                .end
+                .as_ref()
+                .and_then(|cursor| cursor.parse::<i64>().ok())
+                .map(|cursor| {
+                    Expr::col((Tip::Table, Tip::Created)).binary(
+                        BinOper::SmallerThanOrEqual,
+                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                    )
+                }),
+        )
+        .and_where(
+            Expr::col(Tip::State)
+                .eq(TipState::Prepared as i32)
+                .or(Expr::col(Tip::State).eq(TipState::Committed as i32)),
+        )
+        .build_sqlx(PostgresQueryBuilder);
+
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| {
+            debug!("exec sql failed: {e}\n{sql}\n{values:?}");
+            AppError::NotFound
+        })?;
+
+    Ok(ok(json!({
+        "tips": result,
+        "page": query.page,
+        "per_page": query.per_page,
         "total":  total.0
     })))
 }
@@ -368,7 +603,7 @@ pub async fn check_tip_tx(state: AppView) -> Result<()> {
             (Tip::Table, Tip::Created),
         ])
         .from(Tip::Table)
-        .and_where(Expr::col(Tip::State).eq(0))
+        .and_where(Expr::col(Tip::State).eq(TipState::Prepared as i32))
         .build_sqlx(PostgresQueryBuilder);
     info!("start check_tip_tx task");
     loop {
@@ -389,39 +624,26 @@ pub async fn check_tip_tx(state: AppView) -> Result<()> {
                     let tx_status = get_tx_status(&state.ckb_client, &tx_hash).await;
                     if let Ok(tx_status) = tx_status {
                         debug!("tip id {id} tx {tx_hash} status: {tx_status:?}");
-                        match tx_status {
-                            ckb_jsonrpc_types::Status::Committed => {
-                                let (sql, values) = sea_query::Query::update()
-                                    .table(Tip::Table)
-                                    .value(Tip::State, 1)
-                                    .and_where(Expr::col(Tip::Id).eq(id))
-                                    .build_sqlx(PostgresQueryBuilder);
-                                sqlx::query_with(&sql, values).execute(&state.db).await.ok();
-                                debug!("tip id {} tx {} confirmed", id, tx_hash);
-                            }
-                            ckb_jsonrpc_types::Status::Pending => {}
-                            ckb_jsonrpc_types::Status::Proposed => {}
+                        let tip_state = match tx_status {
+                            ckb_jsonrpc_types::Status::Committed => TipState::Committed,
+                            ckb_jsonrpc_types::Status::Pending => continue,
+                            ckb_jsonrpc_types::Status::Proposed => continue,
                             ckb_jsonrpc_types::Status::Unknown => {
                                 if (chrono::Local::now() - created) > chrono::Duration::minutes(3) {
-                                    let (sql, values) = sea_query::Query::update()
-                                        .table(Tip::Table)
-                                        .value(Tip::State, 2)
-                                        .and_where(Expr::col(Tip::Id).eq(id))
-                                        .build_sqlx(PostgresQueryBuilder);
-                                    sqlx::query_with(&sql, values).execute(&state.db).await.ok();
-                                    debug!("tip id {} tx {} marked as timeout", id, tx_hash);
+                                    TipState::Timeout
+                                } else {
+                                    continue;
                                 }
                             }
-                            ckb_jsonrpc_types::Status::Rejected => {
-                                let (sql, values) = sea_query::Query::update()
-                                    .table(Tip::Table)
-                                    .value(Tip::State, 3)
-                                    .and_where(Expr::col(Tip::Id).eq(id))
-                                    .build_sqlx(PostgresQueryBuilder);
-                                sqlx::query_with(&sql, values).execute(&state.db).await.ok();
-                                debug!("tip id {} tx {} marked as rejected", id, tx_hash);
-                            }
-                        }
+                            ckb_jsonrpc_types::Status::Rejected => TipState::Rejected,
+                        };
+                        let (sql, values) = sea_query::Query::update()
+                            .table(Tip::Table)
+                            .value(Tip::State, tip_state as i32)
+                            .and_where(Expr::col(Tip::Id).eq(id))
+                            .build_sqlx(PostgresQueryBuilder);
+                        sqlx::query_with(&sql, values).execute(&state.db).await.ok();
+                        debug!("tip id {} tx {} marked as {:?}", id, tx_hash, tip_state);
                     }
                 }
             }

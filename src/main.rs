@@ -129,6 +129,7 @@ async fn main() -> Result<()> {
         .route("/api/tip/prepare", post(api::tip::prepare))
         .route("/api/tip/transfer", post(api::tip::transfer))
         .route("/api/tip/list", post(api::tip::list_by_for))
+        .route("/api/tip/expense_details", post(api::tip::expense_details))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
