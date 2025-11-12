@@ -98,8 +98,6 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql} ({values:?})");
-
     let rows: Vec<ReplyRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await

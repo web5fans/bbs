@@ -82,8 +82,6 @@ pub(crate) async fn list_like(state: &AppView, query: LikeQuery) -> Result<Value
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql} ({values:?})");
-
     let rows: Vec<LikeRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await

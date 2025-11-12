@@ -116,7 +116,6 @@ impl Tip {
             ])?
             .returning_col(Self::Id)
             .build_sqlx(PostgresQueryBuilder);
-        debug!("insert exec sql: {sql}");
         sqlx::query_with(&sql, values)
             .fetch_one(db)
             .await

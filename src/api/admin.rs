@@ -72,7 +72,6 @@ pub(crate) async fn update_tag(
                 .from(Post::Table)
                 .and_where(Expr::col(Post::Uri).eq(body.params.uri.clone()))
                 .build_sqlx(PostgresQueryBuilder);
-            debug!("sql: {sql} ({values:?})");
             let row: (i32,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
@@ -88,7 +87,6 @@ pub(crate) async fn update_tag(
                 .from(Reply::Table)
                 .and_where(Expr::col(Reply::Uri).eq(body.params.uri.clone()))
                 .build_sqlx(PostgresQueryBuilder);
-            debug!("sql: {sql} ({values:?})");
             let row: (i32,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
@@ -104,7 +102,6 @@ pub(crate) async fn update_tag(
                 .from(Comment::Table)
                 .and_where(Expr::col(Comment::Uri).eq(body.params.uri.clone()))
                 .build_sqlx(PostgresQueryBuilder);
-            debug!("sql: {sql} ({values:?})");
             let row: (i32,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await

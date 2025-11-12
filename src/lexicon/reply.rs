@@ -141,7 +141,6 @@ impl Reply {
                     .to_owned(),
             )
             .build_sqlx(PostgresQueryBuilder);
-        debug!("insert exec sql: {sql}");
         db.execute(query_with(&sql, values)).await?;
 
         // update Post::Updated
@@ -150,7 +149,6 @@ impl Reply {
             .values([(Post::Updated, (chrono::Local::now()).into())])
             .and_where(Expr::col(Post::Uri).eq(comment))
             .build_sqlx(PostgresQueryBuilder);
-        debug!("update Post::Updated: {sql}");
         db.execute(query_with(&sql, values)).await.ok();
         Ok(())
     }
@@ -177,7 +175,6 @@ impl Reply {
             .values(values)
             .and_where(Expr::col(Self::Uri).eq(uri))
             .build_sqlx(PostgresQueryBuilder);
-        debug!("update_tag exec sql: {sql}");
         db.execute(query_with(&sql, values)).await?;
         Ok(())
     }

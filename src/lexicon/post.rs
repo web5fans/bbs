@@ -155,7 +155,6 @@ impl Post {
                     .to_owned(),
             )
             .build_sqlx(PostgresQueryBuilder);
-        debug!("insert exec sql: {sql}");
 
         db.execute(query_with(&sql, values)).await?;
         Ok(())
@@ -191,7 +190,6 @@ impl Post {
             .values(values)
             .and_where(Expr::col(Self::Uri).eq(uri))
             .build_sqlx(PostgresQueryBuilder);
-        debug!("update_tag exec sql: {sql}");
         db.execute(query_with(&sql, values)).await?;
         Ok(())
     }

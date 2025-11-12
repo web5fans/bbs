@@ -96,8 +96,6 @@ pub(crate) async fn list(
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql} ({values:?})");
-
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
@@ -185,8 +183,6 @@ pub(crate) async fn top(
         .limit(10)
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql} ({values:?})");
-
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
@@ -238,8 +234,6 @@ pub(crate) async fn detail(
         .and_where(Expr::col(Post::Uri).eq(uri))
         .build_sqlx(PostgresQueryBuilder);
 
-    debug!("sql: {sql} ({values:?})");
-
     let row: PostRow = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
@@ -257,7 +251,6 @@ pub(crate) async fn detail(
         ])
         .and_where(Expr::col(Post::Uri).eq(&row.uri))
         .build_sqlx(PostgresQueryBuilder);
-    debug!("update exec sql: {sql}");
     state.db.execute(query_with(&sql, values)).await?;
 
     let sections = Section::all(&state.db).await?;
@@ -319,8 +312,6 @@ pub(crate) async fn commented(
     let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
         .build_sqlx(PostgresQueryBuilder);
-
-    debug!("sql: {sql} ({values:?})");
 
     let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)

@@ -103,7 +103,6 @@ impl Section {
             .from(Section::Table)
             .and_where(Expr::col(Section::Id).eq(id))
             .build_sqlx(PostgresQueryBuilder);
-        debug!("sql: {sql} ({values:?})");
         query_as_with(&sql, values.clone())
             .fetch_one(db)
             .await
