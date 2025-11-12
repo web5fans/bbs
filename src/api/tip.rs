@@ -375,7 +375,6 @@ pub(crate) async fn expense_details(
         })?;
     let mut result: Vec<TipDetailView> = Vec::new();
     for tip_row in &rows {
-        let sender_author = build_author(&state, &tip_row.sender_did).await;
         let receiver_author = build_author(&state, &tip_row.receiver_did).await;
         let (nsid, uri) = tip_row.info.split_once("/").unwrap_or(("", ""));
         let source = match nsid {
@@ -480,7 +479,7 @@ pub(crate) async fn expense_details(
         result.push(TipDetailView {
             id: tip_row.id.to_string(),
             sender_did: tip_row.sender_did.clone(),
-            sender_author,
+            sender_author: Value::Null,
             sender: tip_row.sender.clone(),
             receiver: tip_row.receiver.clone(),
             receiver_did: tip_row.receiver_did.clone(),
