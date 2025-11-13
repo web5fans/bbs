@@ -20,12 +20,14 @@ use validator::Validate;
 use crate::{
     AppView,
     api::{ToTimestamp, build_author},
+    atproto::NSID_POST,
     error::AppError,
     lexicon::{
         comment::{Comment, CommentRow},
         post::{Post, PostRepliedView, PostRow, PostView},
         section::Section,
     },
+    micro_pay,
 };
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
@@ -121,7 +123,14 @@ pub(crate) async fn list(
         };
 
         if !row.is_disabled || display {
-            views.push(PostView::build(row, author));
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_POST, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
+            views.push(PostView::build(row, author, tip_count.to_string()));
         }
     }
     let cursor = views.last().map(|r| r.updated.timestamp());
@@ -207,7 +216,14 @@ pub(crate) async fn top(
         };
 
         if !row.is_disabled || display {
-            views.push(PostView::build(row, author));
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_POST, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
+            views.push(PostView::build(row, author, tip_count.to_string()));
         }
     }
     Ok(ok(json!({
@@ -269,7 +285,14 @@ pub(crate) async fn detail(
     };
 
     if !row.is_disabled || display {
-        Ok(ok(PostView::build(row, author)))
+        let tip_count = micro_pay::payment_completed_total(
+            &state.pay_url,
+            &format!("{}/{}", NSID_POST, row.uri),
+        )
+        .await
+        .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+        .unwrap_or(0);
+        Ok(ok(PostView::build(row, author, tip_count.to_string())))
     } else {
         Err(AppError::IsDisabled(
             row.reasons_for_disabled.unwrap_or_default(),
@@ -348,7 +371,19 @@ pub(crate) async fn commented(
                 false
             };
             if (!row.is_disabled || post_display) && (!comment.is_disabled || comment_display) {
-                views.push(PostRepliedView::build(row, post_author, comment));
+                let tip_count = micro_pay::payment_completed_total(
+                    &state.pay_url,
+                    &format!("{}/{}", NSID_POST, row.uri),
+                )
+                .await
+                .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+                .unwrap_or(0);
+                views.push(PostRepliedView::build(
+                    row,
+                    post_author,
+                    comment,
+                    tip_count.to_string(),
+                ));
             }
         }
     }

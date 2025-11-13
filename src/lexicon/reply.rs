@@ -1,6 +1,5 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use rust_decimal::Decimal;
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -195,7 +194,6 @@ pub struct ReplyRow {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
-    pub tip_count: Option<Decimal>,
     pub liked: bool,
 }
 

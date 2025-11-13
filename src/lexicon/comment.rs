@@ -1,6 +1,5 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::OptionExt};
-use rust_decimal::Decimal;
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -146,7 +145,6 @@ impl Comment {
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"comment\".\"uri\") as like_count"))
         .expr(Expr::cust("(select count(\"reply\".\"uri\") from \"reply\" where \"reply\".\"comment\" = \"comment\".\"uri\") as reply_count"))
-        .expr(Expr::cust("(select sum(\"tip\".\"amount\") from \"tip\" where \"tip\".\"for_uri\" = \"comment\".\"uri\" and \"tip\".\"state\" = 1) as tip_count"))
         .expr(if let Some(viewer) = &viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"comment\".\"uri\" ) > 0) as liked"))
         } else {
@@ -195,7 +193,6 @@ pub struct CommentRow {
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
-    pub tip_count: Option<Decimal>,
     pub liked: bool,
     pub reply_count: i64,
 }
@@ -219,7 +216,7 @@ pub struct CommentView {
 }
 
 impl CommentView {
-    pub fn build(row: CommentRow, author: Value, replies: Value) -> Self {
+    pub fn build(row: CommentRow, author: Value, replies: Value, tip_count: String) -> Self {
         Self {
             uri: row.uri,
             cid: row.cid,
@@ -231,7 +228,7 @@ impl CommentView {
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),
-            tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
+            tip_count,
             replies,
             liked: row.liked,
             reply_count: row.reply_count.to_string(),

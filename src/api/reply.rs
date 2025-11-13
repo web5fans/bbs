@@ -3,7 +3,6 @@ use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
 };
-use rust_decimal::Decimal;
 use sea_query::{BinOper, Expr, ExprTrait, Func, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
@@ -15,11 +14,13 @@ use validator::Validate;
 use crate::{
     AppView,
     api::{ToTimestamp, build_author},
+    atproto::NSID_REPLY,
     error::AppError,
     lexicon::{
         reply::{Reply, ReplyRow, ReplyView},
         section::Section,
     },
+    micro_pay,
 };
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
@@ -75,7 +76,6 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             (Reply::Table, Reply::Created),
         ])
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"to\" = \"reply\".\"uri\") as like_count"))
-        .expr(Expr::cust("(select sum(\"tip\".\"amount\") from \"tip\" where \"tip\".\"for_uri\" = \"reply\".\"uri\" and \"tip\".\"state\" = 1) as tip_count"))
         .expr(if let Some(viewer) =&query.viewer {
             Expr::cust(format!("((select count(\"like\".\"uri\") from \"like\" where \"like\".\"repo\" = '{viewer}' and \"like\".\"to\" = \"reply\".\"uri\" ) > 0) as liked"))
         } else {
@@ -119,6 +119,13 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             false
         };
         if !row.is_disabled || display {
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_REPLY, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
             views.push(ReplyView {
                 uri: row.uri,
                 cid: row.cid,
@@ -132,7 +139,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
                 updated: row.updated,
                 created: row.created,
                 like_count: row.like_count.to_string(),
-                tip_count: row.tip_count.unwrap_or(Decimal::new(0, 0)).to_string(),
+                tip_count: tip_count.to_string(),
                 liked: row.liked,
             });
         }

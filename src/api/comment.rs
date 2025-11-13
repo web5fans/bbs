@@ -14,11 +14,13 @@ use validator::Validate;
 use crate::{
     AppView,
     api::{build_author, reply::ReplyQuery},
+    atproto::NSID_COMMENT,
     error::AppError,
     lexicon::{
         comment::{Comment, CommentRow, CommentView},
         section::Section,
     },
+    micro_pay,
 };
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
@@ -94,7 +96,19 @@ pub(crate) async fn list(
             false
         };
         if !row.is_disabled || display {
-            views.push(CommentView::build(row, author, replies));
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_COMMENT, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
+            views.push(CommentView::build(
+                row,
+                author,
+                replies,
+                tip_count.to_string(),
+            ));
         }
     }
 
