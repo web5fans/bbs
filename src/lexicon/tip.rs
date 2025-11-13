@@ -14,10 +14,17 @@ pub enum TipState {
     Rejected = 3,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum TipCategory {
+    Tip = 0,
+    Donate = 1,
+}
+
 #[derive(Iden)]
 pub enum Tip {
     Table,
     Id,
+    Category,
     SenderDid,
     Sender,
     Receiver,
@@ -42,6 +49,12 @@ impl Tip {
                     .not_null()
                     .auto_increment()
                     .primary_key(),
+            )
+            .col(
+                ColumnDef::new(Self::Category)
+                    .integer()
+                    .not_null()
+                    .default(0),
             )
             .col(
                 ColumnDef::new(Self::SenderDid)
@@ -89,6 +102,7 @@ impl Tip {
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
+                Self::Category,
                 Self::SenderDid,
                 Self::Sender,
                 Self::Receiver,
@@ -102,6 +116,7 @@ impl Tip {
                 Self::Created,
             ])
             .values([
+                row.category.into(),
                 row.sender_did.clone().into(),
                 row.sender.clone().into(),
                 row.receiver.clone().into(),
@@ -127,6 +142,7 @@ impl Tip {
         sea_query::Query::select()
             .columns([
                 (Self::Table, Self::Id),
+                (Self::Table, Self::Category),
                 (Self::Table, Self::Sender),
                 (Self::Table, Self::SenderDid),
                 (Self::Table, Self::Receiver),
@@ -148,6 +164,7 @@ impl Tip {
 #[allow(dead_code)]
 pub struct TipRow {
     pub id: i32,
+    pub category: i32,
     pub sender: String,
     pub sender_did: String,
     pub receiver: String,
@@ -165,6 +182,7 @@ pub struct TipRow {
 #[allow(dead_code)]
 pub struct TipView {
     pub id: String,
+    pub category: String,
     pub sender: String,
     pub sender_did: String,
     pub sender_author: Value,
@@ -183,6 +201,7 @@ pub struct TipView {
 #[allow(dead_code)]
 pub struct TipDetailView {
     pub id: String,
+    pub category: String,
     pub sender: String,
     pub sender_did: String,
     pub sender_author: Value,

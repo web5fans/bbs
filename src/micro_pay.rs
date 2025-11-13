@@ -31,10 +31,14 @@ pub async fn payment_transfer(url: &str, body: &Value) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
-#[allow(dead_code)]
-pub async fn payment(url: &str, payment_id: &str) -> Result<Value> {
+pub async fn payment_sender_did(
+    url: &str,
+    sender_did: &str,
+    query: &[(&str, &str)],
+) -> Result<Value> {
     reqwest::Client::new()
-        .get(format!("{url}/api/payment/{payment_id}"))
+        .get(format!("{url}/api/payment/sender-did/{sender_did}"))
+        .query(query)
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
         .send()
@@ -45,24 +49,14 @@ pub async fn payment(url: &str, payment_id: &str) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
-#[allow(dead_code)]
-pub async fn payment_sender(url: &str, sender: &str) -> Result<Value> {
+pub async fn payment_receiver_did(
+    url: &str,
+    receiver_did: &str,
+    query: &[(&str, &str)],
+) -> Result<Value> {
     reqwest::Client::new()
-        .get(format!("{url}/api/payment/sender/{sender}"))
-        .header("Content-Type", "application/json; charset=utf-8")
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .map_err(|e| eyre!("call micro_pay failed: {e}"))?
-        .json::<Value>()
-        .await
-        .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
-}
-
-#[allow(dead_code)]
-pub async fn payment_receiver(url: &str, receiver: &str) -> Result<Value> {
-    reqwest::Client::new()
-        .get(format!("{url}/api/payment/receiver/{receiver}"))
+        .get(format!("{url}/api/payment/receiver-did/{receiver_did}"))
+        .query(query)
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
         .send()

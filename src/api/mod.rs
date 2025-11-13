@@ -16,6 +16,7 @@ use crate::{
 
 pub(crate) mod admin;
 pub(crate) mod comment;
+pub(crate) mod donate;
 pub(crate) mod like;
 pub(crate) mod post;
 pub(crate) mod record;
@@ -46,6 +47,9 @@ pub(crate) mod tip;
         tip::transfer,
         tip::list_by_for,
         tip::expense_details,
+        tip::income_details,
+        donate::prepare,
+        donate::transfer,
     ),
     components(schemas(
         admin::UpdateTagParams,
@@ -60,6 +64,8 @@ pub(crate) mod tip;
         tip::TipBody,
         tip::TipsQuery,
         tip::DetailQuery,
+        donate::DonateParams,
+        donate::DonateBody,
     ))
 )]
 pub struct ApiDoc;

@@ -25,7 +25,7 @@ use crate::{
         post::Post,
         reply::Reply,
         section::Section,
-        tip::{Tip, TipDetailView, TipRow, TipState, TipView},
+        tip::{Tip, TipCategory, TipDetailView, TipRow, TipState, TipView},
     },
     micro_pay,
 };
@@ -135,6 +135,7 @@ pub(crate) async fn prepare(
 
     let mut tip_row = TipRow {
         id: -1,
+        category: TipCategory::Tip as i32,
         sender_did: body.did.clone(),
         sender: body.params.sender.clone(),
         receiver,
@@ -154,18 +155,20 @@ pub(crate) async fn prepare(
         &state.pay_url,
         &json!({
             "sender": &tip_row.sender,
-            "sender_did": &tip_row.sender_did,
+            "senderDid": &tip_row.sender_did,
             "receiver": &tip_row.receiver,
-            "receiver_did": &tip_row.receiver_did,
+            "receiverDid": &tip_row.receiver_did,
             "amount": &tip_row.amount,
             "info": &tip_row.info,
             "splitReceivers": [
                 {
                     "address": &state.bbs_ckb_addr,
+                    "receiverDid": &state.bbs_ckb_addr,
                     "splitRate": 10
                 },
                 {
                     "address": &section_ckb_addr,
+                    "receiverDid": &section_ckb_addr,
                     "splitRate": 20
                 }
             ]
@@ -189,6 +192,7 @@ pub(crate) async fn prepare(
     let author = build_author(&state, &tip_row.sender_did).await;
     let tip = TipView {
         id: tip_row.id.to_string(),
+        category: tip_row.category.to_string(),
         sender_did: tip_row.sender_did.clone(),
         sender_author: author,
         sender: tip_row.sender.clone(),
@@ -262,6 +266,7 @@ pub(crate) async fn list_by_for(
         let author = build_author(&state, &tip_row.sender_did).await;
         result.push(TipView {
             id: tip_row.id.to_string(),
+            category: tip_row.category.to_string(),
             sender_did: tip_row.sender_did.clone(),
             sender_author: author,
             sender: tip_row.sender.clone(),
@@ -306,7 +311,8 @@ pub(crate) struct DetailQuery {
     pub page: u64,
     #[validate(range(min = 1))]
     pub per_page: u64,
-    pub sender_did: String,
+    pub category: Option<u8>,
+    pub did: String,
 }
 
 impl Default for DetailQuery {
@@ -316,7 +322,8 @@ impl Default for DetailQuery {
             end: None,
             page: 1,
             per_page: 20,
-            sender_did: String::new(),
+            category: None,
+            did: String::new(),
         }
     }
 }
@@ -331,7 +338,7 @@ pub(crate) async fn expense_details(
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
     let (sql, values) = Tip::build_select()
-        .and_where(Expr::col(Tip::SenderDid).eq(&query.sender_did))
+        .and_where(Expr::col(Tip::SenderDid).eq(&query.did))
         .and_where_option(
             query
                 .start
@@ -376,108 +383,14 @@ pub(crate) async fn expense_details(
     let mut result: Vec<TipDetailView> = Vec::new();
     for tip_row in &rows {
         let receiver_author = build_author(&state, &tip_row.receiver_did).await;
-        let (nsid, uri) = tip_row.info.split_once("/").unwrap_or(("", ""));
-        let source = match nsid {
-            NSID_POST => {
-                let (sql, values) = sea_query::Query::select()
-                    .columns([(Post::Table, Post::Title)])
-                    .from(Post::Table)
-                    .and_where(Expr::col(Post::Uri).eq(uri))
-                    .build_sqlx(PostgresQueryBuilder);
-                let row: (String,) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                json!({
-                    "nsid": nsid,
-                    "uri": uri,
-                    "title": row.0,
-                })
-            }
-            NSID_COMMENT => {
-                let (sql, values) = sea_query::Query::select()
-                    .columns([
-                        (Comment::Table, Comment::Text),
-                        (Comment::Table, Comment::Post),
-                    ])
-                    .from(Comment::Table)
-                    .and_where(Expr::col(Comment::Uri).eq(uri))
-                    .build_sqlx(PostgresQueryBuilder);
-                let row: (String, String) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                json!({
-                    "nsid": nsid,
-                    "uri": uri,
-                    "post": row.1,
-                    "text": row.0,
-                })
-            }
-            NSID_REPLY => {
-                let (sql, values) = sea_query::Query::select()
-                    .columns([
-                        (Reply::Table, Reply::Text),
-                        (Reply::Table, Reply::Post),
-                        (Reply::Table, Reply::Comment),
-                        (Reply::Table, Reply::To),
-                    ])
-                    .from(Reply::Table)
-                    .and_where(Expr::col(Reply::Uri).eq(uri))
-                    .build_sqlx(PostgresQueryBuilder);
-                let row: (String, String, String, String) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                json!({
-                    "nsid": nsid,
-                    "uri": uri,
-                    "text": row.0,
-                    "post": row.1,
-                    "comment": row.2,
-                    "to": row.3,
-                })
-            }
-            NSID_SECTION => {
-                let (sql, values) = sea_query::Query::select()
-                    .columns([(Section::Table, Section::Name)])
-                    .from(Section::Table)
-                    .and_where(Expr::col(Section::Id).eq(uri.parse::<i32>().unwrap_or(0)))
-                    .build_sqlx(PostgresQueryBuilder);
-                let row: (i32, String) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
-                json!({
-                    "nsid": nsid,
-                    "id": uri,
-                    "name": row.0,
-                })
-            }
-            NSID_COMMUNITY => {
-                json!({
-                    "nsid": nsid,
-                    "name": "BBS 社区",
-                })
-            }
-            _ => {
-                continue;
-            }
+        let source = if let Ok(source) = get_source(&state, &tip_row.info).await {
+            source
+        } else {
+            continue;
         };
         result.push(TipDetailView {
             id: tip_row.id.to_string(),
+            category: tip_row.category.to_string(),
             sender_did: tip_row.sender_did.clone(),
             sender_author: Value::Null,
             sender: tip_row.sender.clone(),
@@ -498,7 +411,7 @@ pub(crate) async fn expense_details(
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Tip::Table, Tip::Id)).count())
         .from(Tip::Table)
-        .and_where(Expr::col(Tip::SenderDid).eq(&query.sender_did))
+        .and_where(Expr::col(Tip::SenderDid).eq(&query.did))
         .and_where_option(
             query
                 .start
@@ -546,6 +459,64 @@ pub(crate) async fn expense_details(
     })))
 }
 
+#[utoipa::path(post, path = "/api/tip/income_details")]
+pub(crate) async fn income_details(
+    State(state): State<AppView>,
+    Json(query): Json<DetailQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let mut q: Vec<(&str, &str)> = vec![];
+    if let Some(start) = &query.start {
+        q.push(("start", start.as_str()));
+    }
+    if let Some(end) = &query.end {
+        q.push(("end", end.as_str()));
+    }
+    let per_page = query.per_page.to_string();
+    q.push(("limit", per_page.as_str()));
+    let offset = (query.per_page * (query.page - 1)).to_string();
+    q.push(("offset", offset.as_str()));
+    debug!(
+        "micro_pay payment_receiver_did: did: {}, query: {q:?}",
+        query.did
+    );
+    let row = micro_pay::payment_receiver_did(&state.pay_url, &query.did, &q).await?;
+    let mut items: Vec<Value> = row
+        .get("items")
+        .and_then(|items| items.as_array())
+        .unwrap_or(&vec![])
+        .to_vec();
+    for item in &mut items {
+        if let Some(info) = item.get("info").and_then(|i| i.as_str()) {
+            let source = if let Ok(source) = get_source(&state, info).await {
+                source
+            } else {
+                continue;
+            };
+            item["source"] = source;
+        }
+        if let Some(receiver_did) = item.get("receiverDid").and_then(|i| i.as_str()) {
+            let receiver_author = build_author(&state, receiver_did).await;
+            item["receiver_author"] = receiver_author;
+        }
+        if let Some(sender_did) = item.get("senderDid").and_then(|i| i.as_str()) {
+            let sender_author = build_author(&state, sender_did).await;
+            item["sender_author"] = sender_author;
+        }
+    }
+
+    let total = row
+        .pointer("/pagination/count")
+        .and_then(|i| i.as_i64())
+        .unwrap_or(0);
+
+    Ok(ok(json!({
+        "tips": items,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total
+    })))
+}
+
 async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> {
     let did_doc = did_document(indexer, body.did.as_str())
         .await
@@ -574,13 +545,120 @@ async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> 
     let signature = hex::decode(&body.signed_bytes)
         .map(|bytes| Signature::from_slice(&bytes).map_err(|e| eyre!(e)))??;
     let unsigned_bytes = serde_ipld_dagcbor::to_vec(&body.params)?;
-    debug!("unsigned_bytes: {}", hex::encode(&unsigned_bytes));
     verifying_key
         .verify(&unsigned_bytes, &signature)
         .map_err(|e| {
             debug!("verify signature failed: {e}");
             AppError::ValidateFailed("verify signature failed".to_string())
         })
+}
+
+async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
+    let (nsid, uri) = info.split_once("/").unwrap_or(("", ""));
+    let source = match nsid {
+        NSID_POST => {
+            let (sql, values) = sea_query::Query::select()
+                .columns([(Post::Table, Post::Title)])
+                .from(Post::Table)
+                .and_where(Expr::col(Post::Uri).eq(uri))
+                .build_sqlx(PostgresQueryBuilder);
+            let row: (String,) = query_as_with(&sql, values.clone())
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| {
+                    debug!("exec sql failed: {e}");
+                    AppError::NotFound
+                })?;
+            json!({
+                "nsid": nsid,
+                "uri": uri,
+                "title": row.0,
+            })
+        }
+        NSID_COMMENT => {
+            let (sql, values) = sea_query::Query::select()
+                .columns([
+                    (Comment::Table, Comment::Text),
+                    (Comment::Table, Comment::Post),
+                ])
+                .from(Comment::Table)
+                .and_where(Expr::col(Comment::Uri).eq(uri))
+                .build_sqlx(PostgresQueryBuilder);
+            let row: (String, String) = query_as_with(&sql, values.clone())
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| {
+                    debug!("exec sql failed: {e}");
+                    AppError::NotFound
+                })?;
+            json!({
+                "nsid": nsid,
+                "uri": uri,
+                "post": row.1,
+                "text": row.0,
+            })
+        }
+        NSID_REPLY => {
+            let (sql, values) = sea_query::Query::select()
+                .columns([
+                    (Reply::Table, Reply::Text),
+                    (Reply::Table, Reply::Post),
+                    (Reply::Table, Reply::Comment),
+                    (Reply::Table, Reply::To),
+                ])
+                .from(Reply::Table)
+                .and_where(Expr::col(Reply::Uri).eq(uri))
+                .build_sqlx(PostgresQueryBuilder);
+            let row: (String, String, String, String) = query_as_with(&sql, values.clone())
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| {
+                    debug!("exec sql failed: {e}");
+                    AppError::NotFound
+                })?;
+            json!({
+                "nsid": nsid,
+                "uri": uri,
+                "text": row.0,
+                "post": row.1,
+                "comment": row.2,
+                "to": row.3,
+            })
+        }
+        NSID_SECTION => {
+            let (sql, values) = sea_query::Query::select()
+                .columns([(Section::Table, Section::Name)])
+                .from(Section::Table)
+                .and_where(Expr::col(Section::Id).eq(uri.parse::<i32>().unwrap_or(0)))
+                .build_sqlx(PostgresQueryBuilder);
+            let row: (i32, String) = query_as_with(&sql, values.clone())
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| {
+                    debug!("exec sql failed: {e}");
+                    AppError::NotFound
+                })?;
+            json!({
+                "nsid": nsid,
+                "id": uri,
+                "name": row.0,
+            })
+        }
+        NSID_COMMUNITY => {
+            json!({
+                "nsid": nsid,
+                "name": "BBS 社区",
+            })
+        }
+        _ => {
+            json!({
+                "nsid": nsid,
+                "uri": uri,
+            })
+        }
+    };
+
+    Ok(source)
 }
 
 #[test]
