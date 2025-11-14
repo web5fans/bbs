@@ -63,6 +63,7 @@ pub(crate) async fn prepare(
             "senderDid": &tip_row.sender_did,
             "receiver": &tip_row.receiver,
             "receiverDid": &tip_row.receiver_did,
+            "category": &tip_row.category,
             "amount": &tip_row.amount,
             "info": &tip_row.info,
             "splitReceivers": []

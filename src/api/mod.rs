@@ -11,6 +11,7 @@ use utoipa::{
 use crate::{
     AppView,
     atproto::{NSID_PROFILE, get_record},
+    ckb::get_ckb_addr_by_did,
     lexicon::{comment::Comment, like::Like, post::Post},
 };
 
@@ -48,6 +49,7 @@ pub(crate) mod tip;
         tip::list_by_for,
         tip::expense_details,
         tip::income_details,
+        tip::stats,
         donate::prepare,
         donate::transfer,
     ),
@@ -136,6 +138,9 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .unwrap_or(json!({
             "did": repo
         }));
+    if let Ok(ckb_addr) = get_ckb_addr_by_did(&state.ckb_client, repo).await {
+        author["ckb_addr"] = Value::String(ckb_addr);
+    }
     author["did"] = Value::String(repo.to_owned());
     author["post_count"] = Value::String(post_count_row.0.to_string());
     author["comment_count"] = Value::String(comment_count_row.0.to_string());

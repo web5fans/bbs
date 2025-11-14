@@ -125,6 +125,7 @@ async fn main() -> Result<()> {
         .route("/api/tip/list", post(api::tip::list_by_for))
         .route("/api/tip/expense_details", post(api::tip::expense_details))
         .route("/api/tip/income_details", post(api::tip::income_details))
+        .route("/api/tip/stats", get(api::tip::stats))
         .route("/api/donate/prepare", post(api::donate::prepare))
         .route("/api/donate/transfer", post(api::donate::transfer))
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))

@@ -1,6 +1,10 @@
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::{
-    axum::{Json, extract::State, response::IntoResponse},
+    axum::{
+        Json,
+        extract::{Query, State},
+        response::IntoResponse,
+    },
     ok,
 };
 use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
@@ -9,7 +13,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::query_as_with;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 use crate::{
@@ -154,6 +158,7 @@ pub(crate) async fn prepare(
             "senderDid": &tip_row.sender_did,
             "receiver": &tip_row.receiver,
             "receiverDid": &tip_row.receiver_did,
+            "category": &tip_row.category,
             "amount": &tip_row.amount,
             "info": &tip_row.info,
             "splitReceivers": [
@@ -332,14 +337,11 @@ pub(crate) async fn expense_details(
         .unwrap_or(&vec![])
         .to_vec();
     for item in &mut items {
-        if let Some(info) = item.get("info").and_then(|i| i.as_str()) {
-            let source = if let Ok(source) = get_source(&state, info).await {
-                source
-            } else {
-                continue;
-            };
+        if let Some(info) = item.get("info").and_then(|i| i.as_str())
+            && let Ok(source) = get_source(&state, info).await
+        {
             item["source"] = source;
-        }
+        };
         if let Some(receiver_did) = item.get("receiverDid").and_then(|i| i.as_str()) {
             let receiver_author = build_author(&state, receiver_did).await;
             item["receiver_author"] = receiver_author;
@@ -390,14 +392,11 @@ pub(crate) async fn income_details(
         .unwrap_or(&vec![])
         .to_vec();
     for item in &mut items {
-        if let Some(info) = item.get("info").and_then(|i| i.as_str()) {
-            let source = if let Ok(source) = get_source(&state, info).await {
-                source
-            } else {
-                continue;
-            };
+        if let Some(info) = item.get("info").and_then(|i| i.as_str())
+            && let Ok(source) = get_source(&state, info).await
+        {
             item["source"] = source;
-        }
+        };
         if let Some(sender_did) = item.get("senderDid").and_then(|i| i.as_str()) {
             let sender_author = build_author(&state, sender_did).await;
             item["sender_author"] = sender_author;
@@ -415,6 +414,21 @@ pub(crate) async fn income_details(
         "per_page": query.per_page,
         "total":  total
     })))
+}
+
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct DidQuery {
+    pub did: String,
+}
+
+#[utoipa::path(get, path = "/api/tip/stats", params(DidQuery))]
+pub(crate) async fn stats(
+    State(state): State<AppView>,
+    Query(query): Query<DidQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = micro_pay::payment_did_stats(&state.pay_url, &query.did).await?;
+    Ok(ok(result))
 }
 
 async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> {
@@ -529,9 +543,9 @@ async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
             let (sql, values) = sea_query::Query::select()
                 .columns([(Section::Table, Section::Name)])
                 .from(Section::Table)
-                .and_where(Expr::col(Section::Id).eq(uri.parse::<i32>().unwrap_or(0)))
+                .and_where(Expr::col(Section::CkbAddr).eq(uri))
                 .build_sqlx(PostgresQueryBuilder);
-            let row: (i32, String) = query_as_with(&sql, values.clone())
+            let row: (String,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
                 .map_err(|e| {
