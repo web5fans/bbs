@@ -23,14 +23,12 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
 use crate::api::ApiDoc;
-use crate::api::tip::check_tip_tx;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
-use crate::lexicon::tip::Tip;
 
 #[derive(Clone)]
 struct AppView {
@@ -84,7 +82,6 @@ async fn main() -> Result<()> {
     Comment::init(&db).await?;
     Reply::init(&db).await?;
     Like::init(&db).await?;
-    Tip::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -105,9 +102,6 @@ async fn main() -> Result<()> {
             })
             .collect(),
     };
-
-    // start check_tip_tx task
-    tokio::spawn(check_tip_tx(bbs.clone()));
 
     // api
     let router = Router::new()

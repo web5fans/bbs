@@ -1,11 +1,10 @@
-use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok,
 };
 use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
-use sea_query::{BinOper, Expr, ExprTrait, Func, Order, PostgresQueryBuilder};
+use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -15,9 +14,9 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::{ToTimestamp, build_author},
+    api::build_author,
     atproto::{NSID_COMMENT, NSID_COMMUNITY, NSID_POST, NSID_REPLY, NSID_SECTION},
-    ckb::{get_ckb_addr_by_did, get_tx_status},
+    ckb::get_ckb_addr_by_did,
     error::AppError,
     indexer::did_document,
     lexicon::{
@@ -25,7 +24,7 @@ use crate::{
         post::Post,
         reply::Reply,
         section::Section,
-        tip::{Tip, TipCategory, TipDetailView, TipRow, TipState, TipView},
+        tip::{TipCategory, TipRow, TipState, TipView},
     },
     micro_pay,
 };
@@ -142,14 +141,11 @@ pub(crate) async fn prepare(
         receiver_did,
         amount: body.params.amount.parse::<i64>()?,
         info: format!("{}/{}", body.params.nsid, body.params.uri),
-        for_uri: body.params.uri.clone(),
         state: TipState::Prepared as i32,
         tx_hash: None,
         updated: chrono::Local::now(),
         created: chrono::Local::now(),
     };
-
-    debug!("section_ckb_addr: {}", section_ckb_addr);
 
     let result = micro_pay::payment_prepare(
         &state.pay_url,
@@ -187,8 +183,6 @@ pub(crate) async fn prepare(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    tip_row.id = Tip::insert(&state.db, &tip_row).await?;
-
     let author = build_author(&state, &tip_row.sender_did).await;
     let tip = TipView {
         id: tip_row.id.to_string(),
@@ -200,7 +194,6 @@ pub(crate) async fn prepare(
         receiver_did: tip_row.receiver_did.clone(),
         amount: tip_row.amount.to_string(),
         info: tip_row.info.clone(),
-        for_uri: tip_row.for_uri.clone(),
         state: tip_row.state.to_string(),
         tx_hash: tip_row.tx_hash.clone(),
         updated: tip_row.updated,
@@ -257,7 +250,6 @@ pub(crate) async fn list_by_for(
         query.per_page * (query.page - 1)
     );
     let row = micro_pay::payment_completed(&state.pay_url, &q).await?;
-    debug!("payment_completed: {row}");
     let mut items: Vec<Value> = row
         .get("items")
         .and_then(|items| items.as_array())
@@ -318,149 +310,22 @@ pub(crate) async fn expense_details(
         .validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
-    let (sql, values) = Tip::build_select()
-        .and_where(Expr::col(Tip::SenderDid).eq(&query.did))
-        .and_where_option(
-            query
-                .start
-                .as_ref()
-                .and_then(|cursor| cursor.parse::<i64>().ok())
-                .map(|cursor| {
-                    Expr::col((Tip::Table, Tip::Created)).binary(
-                        BinOper::GreaterThanOrEqual,
-                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
-                    )
-                }),
-        )
-        .and_where_option(
-            query
-                .end
-                .as_ref()
-                .and_then(|cursor| cursor.parse::<i64>().ok())
-                .map(|cursor| {
-                    Expr::col((Tip::Table, Tip::Created)).binary(
-                        BinOper::SmallerThanOrEqual,
-                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
-                    )
-                }),
-        )
-        .and_where(
-            Expr::col(Tip::State)
-                .eq(TipState::Prepared as i32)
-                .or(Expr::col(Tip::State).eq(TipState::Committed as i32)),
-        )
-        .order_by(Tip::Created, Order::Desc)
-        .offset(query.per_page * (query.page - 1))
-        .limit(query.per_page)
-        .build_sqlx(PostgresQueryBuilder);
-
-    let rows: Vec<TipRow> = query_as_with(&sql, values.clone())
-        .fetch_all(&state.db)
-        .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
-    let mut result: Vec<TipDetailView> = Vec::new();
-    for tip_row in &rows {
-        let receiver_author = build_author(&state, &tip_row.receiver_did).await;
-        let source = if let Ok(source) = get_source(&state, &tip_row.info).await {
-            source
-        } else {
-            continue;
-        };
-        result.push(TipDetailView {
-            id: tip_row.id.to_string(),
-            category: tip_row.category.to_string(),
-            sender_did: tip_row.sender_did.clone(),
-            sender_author: Value::Null,
-            sender: tip_row.sender.clone(),
-            receiver: tip_row.receiver.clone(),
-            receiver_did: tip_row.receiver_did.clone(),
-            receiver_author,
-            amount: tip_row.amount.to_string(),
-            info: tip_row.info.clone(),
-            for_uri: tip_row.for_uri.clone(),
-            state: tip_row.state.to_string(),
-            tx_hash: tip_row.tx_hash.clone(),
-            updated: tip_row.updated,
-            created: tip_row.created,
-            source,
-        });
+    let mut q: Vec<(&str, String)> = vec![];
+    if let Some(category) = &query.category {
+        q.push(("category", category.to_string()));
     }
-
-    let (sql, values) = sea_query::Query::select()
-        .expr(Expr::col((Tip::Table, Tip::Id)).count())
-        .from(Tip::Table)
-        .and_where(Expr::col(Tip::SenderDid).eq(&query.did))
-        .and_where_option(
-            query
-                .start
-                .as_ref()
-                .and_then(|cursor| cursor.parse::<i64>().ok())
-                .map(|cursor| {
-                    Expr::col((Tip::Table, Tip::Created)).binary(
-                        BinOper::GreaterThanOrEqual,
-                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
-                    )
-                }),
-        )
-        .and_where_option(
-            query
-                .end
-                .as_ref()
-                .and_then(|cursor| cursor.parse::<i64>().ok())
-                .map(|cursor| {
-                    Expr::col((Tip::Table, Tip::Created)).binary(
-                        BinOper::SmallerThanOrEqual,
-                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
-                    )
-                }),
-        )
-        .and_where(
-            Expr::col(Tip::State)
-                .eq(TipState::Prepared as i32)
-                .or(Expr::col(Tip::State).eq(TipState::Committed as i32)),
-        )
-        .build_sqlx(PostgresQueryBuilder);
-
-    let total: (i64,) = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}\n{sql}\n{values:?}");
-            AppError::NotFound
-        })?;
-
-    Ok(ok(json!({
-        "tips": result,
-        "page": query.page,
-        "per_page": query.per_page,
-        "total":  total.0
-    })))
-}
-
-#[utoipa::path(post, path = "/api/tip/income_details")]
-pub(crate) async fn income_details(
-    State(state): State<AppView>,
-    Json(query): Json<DetailQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let mut q: Vec<(&str, &str)> = vec![];
-    if let Some(start) = &query.start {
-        q.push(("start", start.as_str()));
+    if let Some(start) = query.start {
+        q.push(("start", start));
     }
-    if let Some(end) = &query.end {
-        q.push(("end", end.as_str()));
+    if let Some(end) = query.end {
+        q.push(("end", end));
     }
     let per_page = query.per_page.to_string();
-    q.push(("limit", per_page.as_str()));
+    q.push(("limit", per_page));
     let offset = (query.per_page * (query.page - 1)).to_string();
-    q.push(("offset", offset.as_str()));
-    debug!(
-        "micro_pay payment_receiver_did: did: {}, query: {q:?}",
-        query.did
-    );
-    let row = micro_pay::payment_receiver_did(&state.pay_url, &query.did, &q).await?;
+    q.push(("offset", offset));
+
+    let row = micro_pay::payment_sender_did(&state.pay_url, &query.did, &q).await?;
     let mut items: Vec<Value> = row
         .get("items")
         .and_then(|items| items.as_array())
@@ -478,6 +343,60 @@ pub(crate) async fn income_details(
         if let Some(receiver_did) = item.get("receiverDid").and_then(|i| i.as_str()) {
             let receiver_author = build_author(&state, receiver_did).await;
             item["receiver_author"] = receiver_author;
+        }
+    }
+
+    let total = row
+        .pointer("/pagination/count")
+        .and_then(|i| i.as_i64())
+        .unwrap_or(0);
+
+    Ok(ok(json!({
+        "tips": items,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total
+    })))
+}
+
+#[utoipa::path(post, path = "/api/tip/income_details")]
+pub(crate) async fn income_details(
+    State(state): State<AppView>,
+    Json(query): Json<DetailQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    query
+        .validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    let mut q: Vec<(&str, String)> = vec![];
+    if let Some(category) = &query.category {
+        q.push(("category", category.to_string()));
+    }
+    if let Some(start) = query.start {
+        q.push(("start", start));
+    }
+    if let Some(end) = query.end {
+        q.push(("end", end));
+    }
+    let per_page = query.per_page.to_string();
+    q.push(("limit", per_page));
+    let offset = (query.per_page * (query.page - 1)).to_string();
+    q.push(("offset", offset));
+
+    let row = micro_pay::payment_receiver_did(&state.pay_url, &query.did, &q).await?;
+    let mut items: Vec<Value> = row
+        .get("items")
+        .and_then(|items| items.as_array())
+        .unwrap_or(&vec![])
+        .to_vec();
+    for item in &mut items {
+        if let Some(info) = item.get("info").and_then(|i| i.as_str()) {
+            let source = if let Ok(source) = get_source(&state, info).await {
+                source
+            } else {
+                continue;
+            };
+            item["source"] = source;
         }
         if let Some(sender_did) = item.get("senderDid").and_then(|i| i.as_str()) {
             let sender_author = build_author(&state, sender_did).await;
@@ -650,61 +569,4 @@ fn test() {
     println!("now: {}", now);
     println!("five_minutes_ago: {}", five_minutes_ago);
     assert!(a >= five_minutes_ago);
-}
-
-pub async fn check_tip_tx(state: AppView) -> Result<()> {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
-    let (sql, values) = sea_query::Query::select()
-        .columns([
-            (Tip::Table, Tip::Id),
-            (Tip::Table, Tip::TxHash),
-            (Tip::Table, Tip::Created),
-        ])
-        .from(Tip::Table)
-        .and_where(Expr::col(Tip::State).eq(TipState::Prepared as i32))
-        .build_sqlx(PostgresQueryBuilder);
-    info!("start check_tip_tx task");
-    loop {
-        interval.tick().await;
-        #[allow(clippy::type_complexity)]
-        let rows: Option<Vec<(i32, Option<String>, DateTime<Local>)>> =
-            query_as_with(&sql, values.clone())
-                .fetch_all(&state.db)
-                .await
-                .map_err(|e| {
-                    error!("{e}");
-                    e
-                })
-                .ok();
-        if let Some(rows) = rows {
-            for (id, tx_hash, created) in rows {
-                if let Some(tx_hash) = tx_hash {
-                    let tx_status = get_tx_status(&state.ckb_client, &tx_hash).await;
-                    if let Ok(tx_status) = tx_status {
-                        debug!("tip id {id} tx {tx_hash} status: {tx_status:?}");
-                        let tip_state = match tx_status {
-                            ckb_jsonrpc_types::Status::Committed => TipState::Committed,
-                            ckb_jsonrpc_types::Status::Pending => continue,
-                            ckb_jsonrpc_types::Status::Proposed => continue,
-                            ckb_jsonrpc_types::Status::Unknown => {
-                                if (chrono::Local::now() - created) > chrono::Duration::minutes(3) {
-                                    TipState::Timeout
-                                } else {
-                                    continue;
-                                }
-                            }
-                            ckb_jsonrpc_types::Status::Rejected => TipState::Rejected,
-                        };
-                        let (sql, values) = sea_query::Query::update()
-                            .table(Tip::Table)
-                            .value(Tip::State, tip_state as i32)
-                            .and_where(Expr::col(Tip::Id).eq(id))
-                            .build_sqlx(PostgresQueryBuilder);
-                        sqlx::query_with(&sql, values).execute(&state.db).await.ok();
-                        debug!("tip id {} tx {} marked as {:?}", id, tx_hash, tip_state);
-                    }
-                }
-            }
-        }
-    }
 }

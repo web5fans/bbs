@@ -43,6 +43,7 @@ pub async fn get_ckb_addr_by_did(ckb_client: &CkbRpcAsyncClient, did: &str) -> R
     Ok(ckb_addr.to_string())
 }
 
+#[allow(dead_code)]
 pub async fn get_tx_status(
     ckb_client: &CkbRpcAsyncClient,
     tx_hash: &str,

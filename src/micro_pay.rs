@@ -60,7 +60,7 @@ pub async fn payment_completed(url: &str, query: &str) -> Result<Value> {
 pub async fn payment_sender_did(
     url: &str,
     sender_did: &str,
-    query: &[(&str, &str)],
+    query: &[(&str, String)],
 ) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/api/payment/sender-did/{sender_did}"))
@@ -78,7 +78,7 @@ pub async fn payment_sender_did(
 pub async fn payment_receiver_did(
     url: &str,
     receiver_did: &str,
-    query: &[(&str, &str)],
+    query: &[(&str, String)],
 ) -> Result<Value> {
     reqwest::Client::new()
         .get(format!("{url}/api/payment/receiver-did/{receiver_did}"))

@@ -9,7 +9,7 @@ use validator::Validate;
 
 use crate::api::build_author;
 use crate::indexer::did_document;
-use crate::lexicon::tip::{Tip, TipCategory, TipRow, TipState, TipView};
+use crate::lexicon::tip::{TipCategory, TipRow, TipState, TipView};
 use crate::micro_pay;
 use crate::{AppView, error::AppError};
 
@@ -50,7 +50,6 @@ pub(crate) async fn prepare(
         receiver_did: body.params.ckb_addr.clone(),
         amount: body.params.amount.parse::<i64>()?,
         info: format!("{}/{}", body.params.nsid, body.params.ckb_addr),
-        for_uri: body.params.ckb_addr.clone(),
         state: TipState::Prepared as i32,
         tx_hash: None,
         updated: chrono::Local::now(),
@@ -82,8 +81,6 @@ pub(crate) async fn prepare(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    tip_row.id = Tip::insert(&state.db, &tip_row).await?;
-
     let author = build_author(&state, &tip_row.sender_did).await;
     let tip = TipView {
         id: tip_row.id.to_string(),
@@ -95,7 +92,6 @@ pub(crate) async fn prepare(
         receiver_did: tip_row.receiver_did.clone(),
         amount: tip_row.amount.to_string(),
         info: tip_row.info.clone(),
-        for_uri: tip_row.for_uri.clone(),
         state: tip_row.state.to_string(),
         tx_hash: tip_row.tx_hash.clone(),
         updated: tip_row.updated,
