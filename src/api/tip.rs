@@ -225,7 +225,8 @@ pub(crate) async fn transfer(
 #[derive(Debug, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct TipsQuery {
-    pub for_uri: String,
+    pub nsid: String,
+    pub uri: String,
     #[validate(range(min = 1))]
     pub page: u64,
     #[validate(range(min = 1))]
@@ -235,7 +236,8 @@ pub(crate) struct TipsQuery {
 impl Default for TipsQuery {
     fn default() -> Self {
         Self {
-            for_uri: String::new(),
+            nsid: String::new(),
+            uri: String::new(),
             page: 1,
             per_page: 20,
         }
@@ -245,60 +247,39 @@ impl Default for TipsQuery {
 #[utoipa::path(post, path = "/api/tip/list")]
 pub(crate) async fn list_by_for(
     State(state): State<AppView>,
-    Json(body): Json<TipsQuery>,
+    Json(query): Json<TipsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = Tip::build_select()
-        .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
-        .and_where(Expr::col(Tip::State).eq(TipState::Committed as i32))
-        .order_by((Tip::Table, Tip::Created), sea_query::Order::Desc)
-        .offset(body.per_page * (body.page - 1))
-        .limit(body.per_page)
-        .build_sqlx(PostgresQueryBuilder);
-    let rows: Vec<TipRow> = query_as_with(&sql, values.clone())
-        .fetch_all(&state.db)
-        .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
-    let mut result: Vec<TipView> = Vec::new();
-    for tip_row in &rows {
-        let author = build_author(&state, &tip_row.sender_did).await;
-        result.push(TipView {
-            id: tip_row.id.to_string(),
-            category: tip_row.category.to_string(),
-            sender_did: tip_row.sender_did.clone(),
-            sender_author: author,
-            sender: tip_row.sender.clone(),
-            receiver: tip_row.receiver.clone(),
-            receiver_did: tip_row.receiver_did.clone(),
-            amount: tip_row.amount.to_string(),
-            info: tip_row.info.clone(),
-            for_uri: tip_row.for_uri.clone(),
-            state: tip_row.state.to_string(),
-            tx_hash: tip_row.tx_hash.clone(),
-            updated: tip_row.updated,
-            created: tip_row.created,
-        });
+    let q = format!(
+        "info={}/{}&limit={}&offset={}",
+        &query.nsid,
+        &query.uri,
+        query.per_page,
+        query.per_page * (query.page - 1)
+    );
+    let row = micro_pay::payment_completed(&state.pay_url, &q).await?;
+    debug!("payment_completed: {row}");
+    let mut items: Vec<Value> = row
+        .get("items")
+        .and_then(|items| items.as_array())
+        .unwrap_or(&vec![])
+        .to_vec();
+    for item in &mut items {
+        if let Some(sender_did) = item.get("senderDid").and_then(|i| i.as_str()) {
+            let sender_author = build_author(&state, sender_did).await;
+            item["sender_author"] = sender_author;
+        }
     }
 
-    let (sql, values) = sea_query::Query::select()
-        .expr(Expr::col((Tip::Table, Tip::Id)).count())
-        .from(Tip::Table)
-        .and_where(Expr::col(Tip::ForUri).eq(&body.for_uri))
-        .and_where(Expr::col(Tip::State).eq(TipState::Committed as i32))
-        .build_sqlx(PostgresQueryBuilder);
-
-    let total: (i64,) = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+    let total = row
+        .pointer("/pagination/count")
+        .and_then(|i| i.as_i64())
+        .unwrap_or(0);
 
     Ok(ok(json!({
-        "tips": result,
-        "page": body.page,
-        "per_page": body.per_page,
-        "total":  total.0
+        "tips": items,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total
     })))
 }
 

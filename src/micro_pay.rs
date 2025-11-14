@@ -33,8 +33,7 @@ pub async fn payment_transfer(url: &str, body: &Value) -> Result<Value> {
 
 pub async fn payment_completed_total(url: &str, info: &str) -> Result<Value> {
     reqwest::Client::new()
-        .get(format!("{url}/api/payment/completed-total"))
-        .query(&("info", info))
+        .get(format!("{url}/api/payment/completed-total?info={info}"))
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
         .send()
@@ -45,10 +44,9 @@ pub async fn payment_completed_total(url: &str, info: &str) -> Result<Value> {
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
 
-pub async fn payment_completed(url: &str, query: &[(&str, &str)]) -> Result<Value> {
+pub async fn payment_completed(url: &str, query: &str) -> Result<Value> {
     reqwest::Client::new()
-        .get(format!("{url}/api/payment/completed"))
-        .query(query)
+        .get(format!("{url}/api/payment/completed?{query}"))
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
         .send()
