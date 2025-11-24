@@ -65,7 +65,6 @@ pub(crate) async fn create(
     )
     .await
     .map_err(|e| AppError::RpcFailed(e.to_string()))?;
-    debug!("pds: {}", result);
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())
@@ -129,7 +128,6 @@ pub(crate) async fn update(
     )
     .await
     .map_err(|e| AppError::RpcFailed(e.to_string()))?;
-    debug!("pds: {}", result);
     let uri = result
         .pointer("/results/0/uri")
         .and_then(|uri| uri.as_str())

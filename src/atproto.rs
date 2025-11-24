@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::time::Duration;
 
 use color_eyre::{Result, eyre::eyre};
 use serde_json::{Value, json};
@@ -96,7 +96,7 @@ pub async fn direct_writes(
     ckb_addr: &str,
     root: &Value,
 ) -> Result<Value> {
-    let rsp = reqwest::Client::new()
+    reqwest::Client::new()
         .post(format!("{url}/xrpc/fans.web5.ckb.directWrites"))
         .bearer_auth(auth)
         .header("Content-Type", "application/json; charset=utf-8")
@@ -114,18 +114,14 @@ pub async fn direct_writes(
         )
         .send()
         .await
-        .map_err(|e| eyre!("call pds failed: {e}"))?;
-    debug!("pds rsp: {rsp:?}");
-    let body_str = rsp
-        .text()
+        .map_err(|e| eyre!("call pds failed: {e}"))?
+        .json()
         .await
-        .map_err(|e| eyre!("read pds response failed: {e}"))?;
-    debug!("pds rsp body: {body_str}");
-    Value::from_str(&body_str).map_err(|e| eyre!("decode pds response failed: {e}"))
+        .map_err(|e| eyre!("read pds response failed: {e}"))
 }
 
 pub async fn index_query(url: &str, did: &str, item: &str) -> Result<Value> {
-    let rsp = reqwest::Client::new()
+    reqwest::Client::new()
         .post(format!("{url}/xrpc/fans.web5.ckb.indexQuery"))
         .header("Content-Type", "application/json; charset=utf-8")
         .timeout(Duration::from_secs(5))
@@ -140,12 +136,8 @@ pub async fn index_query(url: &str, did: &str, item: &str) -> Result<Value> {
         )
         .send()
         .await
-        .map_err(|e| eyre!("call pds failed: {e}"))?;
-    debug!("pds rsp: {rsp:?}");
-    let body_str = rsp
-        .text()
+        .map_err(|e| eyre!("call pds failed: {e}"))?
+        .json()
         .await
-        .map_err(|e| eyre!("read pds response failed: {e}"))?;
-    debug!("pds rsp body: {body_str}");
-    Value::from_str(&body_str).map_err(|e| eyre!("decode pds response failed: {e}"))
+        .map_err(|e| eyre!("read pds response failed: {e}"))
 }
