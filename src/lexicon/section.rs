@@ -113,6 +113,7 @@ impl Section {
         sea_query::Query::select()
         .columns([
             Section::Id,
+            Section::Permission,
             Section::Name,
             Section::Description,
             Section::Owner,
@@ -154,6 +155,7 @@ pub struct SectionRowMini {
 pub struct SectionRowSample {
     pub id: i32,
     pub name: String,
+    pub permission: i32,
     pub description: Option<String>,
     pub owner: Option<String>,
     pub administrators: Option<Vec<String>>,

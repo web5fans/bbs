@@ -129,7 +129,7 @@ pub(crate) async fn prepare(
         }
     };
 
-    let receiver = get_ckb_addr_by_did(&state.ckb_client, &receiver_did)
+    let receiver = get_ckb_addr_by_did(&state.ckb_client, &state.ckb_net, &receiver_did)
         .await
         .map_err(|e| {
             debug!("get ckb addr by did failed: {e}");

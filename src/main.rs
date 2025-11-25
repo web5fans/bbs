@@ -1,6 +1,7 @@
 mod api;
 mod atproto;
 mod ckb;
+mod config;
 mod error;
 mod indexer;
 mod lexicon;
@@ -23,6 +24,7 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
 use crate::api::ApiDoc;
+use crate::config::AppConfig;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::post::Post;
@@ -39,40 +41,26 @@ struct AppView {
     pay_url: String,
     bbs_ckb_addr: String,
     whitelist: Vec<String>,
+    ckb_net: ckb_sdk::NetworkType,
 }
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version)]
 pub struct Args {
-    #[clap(short, long, default_value = "info")]
-    log_filter: String,
-    #[clap(long, default_value = "8080")]
-    port: u16,
-    #[clap(short, long)]
-    db_url: String,
-    #[clap(short, long)]
-    pds: String,
-    #[clap(short, long)]
-    ckb_url: String,
-    #[clap(short, long)]
-    bbs_ckb_addr: String,
-    #[clap(short, long)]
-    pay_url: String,
-    #[clap(short, long)]
-    indexer: String,
-    #[clap(short, long, default_value = "")]
-    whitelist: String,
+    #[clap(short('c'), long = "config", default_value = "config.toml")]
+    config_path: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    let config: AppConfig = common_x::configure::file_config(&args.config_path)?;
 
-    common_x::log::init_log_filter(&args.log_filter);
-    info!("args: {:?}", args);
+    common_x::log::init_log(config.log_config.clone());
+    info!("config: {:?}", config);
     let db = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&args.db_url)
+        .connect(&config.db_url)
         .await?;
 
     // initialize the database
@@ -85,12 +73,13 @@ async fn main() -> Result<()> {
 
     let bbs = AppView {
         db,
-        pds: args.pds.clone(),
-        ckb_client: CkbRpcAsyncClient::new(&args.ckb_url),
-        bbs_ckb_addr: args.bbs_ckb_addr.clone(),
-        indexer: args.indexer.clone(),
-        pay_url: args.pay_url.clone(),
-        whitelist: args
+        pds: config.pds.clone(),
+        ckb_client: CkbRpcAsyncClient::new(&config.ckb_url),
+        bbs_ckb_addr: config.bbs_ckb_addr.clone(),
+        indexer: config.indexer.clone(),
+        pay_url: config.pay_url.clone(),
+        ckb_net: config.ckb_net,
+        whitelist: config
             .whitelist
             .split(',')
             .filter_map(|s| {
@@ -131,7 +120,7 @@ async fn main() -> Result<()> {
         .layer((TimeoutLayer::new(Duration::from_secs(10)),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
-    common_x::restful::http_serve(args.port, router)
+    common_x::restful::http_serve(config.port, router)
         .await
         .map_err(|e| eyre!("{e}"))
 }

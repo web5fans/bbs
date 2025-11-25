@@ -138,7 +138,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .unwrap_or(json!({
             "did": repo
         }));
-    if let Ok(ckb_addr) = get_ckb_addr_by_did(&state.ckb_client, repo).await {
+    if let Ok(ckb_addr) = get_ckb_addr_by_did(&state.ckb_client, &state.ckb_net, repo).await {
         author["ckb_addr"] = Value::String(ckb_addr);
     }
     author["did"] = Value::String(repo.to_owned());
