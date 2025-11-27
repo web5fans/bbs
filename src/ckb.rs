@@ -13,7 +13,7 @@ pub async fn get_ckb_addr_by_did(
     let did = did.trim_start_matches("did:ckb:");
     let did = did.trim_start_matches("did:plc:");
     let code_hash = match ckb_net {
-        NetworkType::Mainnet => "f5f8d0fb3b3f1e0e8f7c9f1c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9fa0b1c2d3",
+        NetworkType::Mainnet => "4a06164dc34dccade5afe3e847a97b6db743e79f5477fa3295acf02849c5984a",
         NetworkType::Testnet | NetworkType::Dev | NetworkType::Staging | NetworkType::Preview => {
             "510150477b10d6ab551a509b71265f3164e9fd4137fcb5a4322f49f03092c7c5"
         }

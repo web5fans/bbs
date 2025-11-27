@@ -58,31 +58,28 @@ pub(crate) async fn create(
         }
     }
 
-    match record_type {
-        NSID_POST | NSID_REPLY | NSID_COMMENT | NSID_LIKE => {
-            let section_id = new_record.value["section_id"]
-                .as_str()
-                .and_then(|s| s.parse::<i32>().ok())
-                .ok_or_eyre("error in section_id")?;
-            let (sql, values) = Section::build_select()
-                .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
-                .build_sqlx(PostgresQueryBuilder);
-            let section: SectionRowSample = sqlx::query_as_with(&sql, values.clone())
-                .fetch_one(&state.db)
-                .await
-                .map_err(|e| eyre!("error in section_id: {e}"))?;
+    if record_type == NSID_POST {
+        let section_id = new_record.value["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
+        let (sql, values) = Section::build_select()
+            .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
+            .build_sqlx(PostgresQueryBuilder);
+        let section: SectionRowSample = sqlx::query_as_with(&sql, values.clone())
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| eyre!("error in section_id: {e}"))?;
 
-            if section.permission > 0 && section.owner != Some(new_record.repo.clone()) {
-                if let Some(administrators) = section.administrators {
-                    if !administrators.contains(&new_record.repo) {
-                        return Err(eyre!("Operation is not allowed!").into());
-                    }
-                } else {
+        if section.permission > 0 && section.owner != Some(new_record.repo.clone()) {
+            if let Some(administrators) = section.administrators {
+                if !administrators.contains(&new_record.repo) {
                     return Err(eyre!("Operation is not allowed!").into());
                 }
+            } else {
+                return Err(eyre!("Operation is not allowed!").into());
             }
         }
-        _ => {}
     }
 
     let result = direct_writes(

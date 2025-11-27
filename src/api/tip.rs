@@ -164,6 +164,14 @@ pub(crate) async fn prepare(
 
     let split_receivers = if is_announcement {
         json!([])
+    } else if state.bbs_ckb_addr == section_ckb_addr {
+        json!([
+            {
+                "address": &state.bbs_ckb_addr,
+                "receiverDid": &state.bbs_ckb_addr,
+                "splitRate": 30
+            }
+        ])
     } else {
         json!([
             {
