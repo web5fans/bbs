@@ -117,7 +117,10 @@ async fn main() -> Result<()> {
         .route("/api/tip/stats", get(api::tip::stats))
         .route("/api/donate/prepare", post(api::donate::prepare))
         .route("/api/donate/transfer", post(api::donate::transfer))
-        .layer((TimeoutLayer::new(Duration::from_secs(10)),))
+        .layer((TimeoutLayer::with_status_code(
+            reqwest::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(10),
+        ),))
         .layer(CorsLayer::permissive())
         .with_state(bbs);
     common_x::restful::http_serve(config.port, router)

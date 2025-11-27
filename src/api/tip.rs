@@ -61,11 +61,14 @@ pub(crate) async fn prepare(
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     validate_signed(&state.indexer, &body).await?;
 
-    let (receiver_did, section_ckb_addr) = match body.params.nsid.as_str() {
+    let (receiver_did, section_ckb_addr, is_announcement) = match body.params.nsid.as_str() {
         NSID_POST => {
             let (sql, values) = sea_query::Query::select()
                 .columns([(Post::Table, Post::Repo)])
-                .columns([(Section::Table, Section::CkbAddr)])
+                .columns([
+                    (Section::Table, Section::CkbAddr),
+                    (Section::Table, Section::Id),
+                ])
                 .from(Post::Table)
                 .left_join(
                     Section::Table,
@@ -73,14 +76,18 @@ pub(crate) async fn prepare(
                 )
                 .and_where(Expr::col(Post::Uri).eq(body.params.uri.clone()))
                 .build_sqlx(PostgresQueryBuilder);
-            let row: (String, String) = query_as_with(&sql, values.clone())
+            let row: (String, String, i32) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
                 .map_err(|e| {
                     debug!("exec sql failed: {e}");
                     AppError::NotFound
                 })?;
-            row
+            if row.2 == 0 {
+                (row.1.clone(), row.1, true)
+            } else {
+                (row.0, row.1, false)
+            }
         }
         NSID_COMMENT => {
             let (sql, values) = sea_query::Query::select()
@@ -101,7 +108,7 @@ pub(crate) async fn prepare(
                     debug!("exec sql failed: {e}");
                     AppError::NotFound
                 })?;
-            row
+            (row.0, row.1, false)
         }
         NSID_REPLY => {
             let (sql, values) = sea_query::Query::select()
@@ -122,19 +129,23 @@ pub(crate) async fn prepare(
                     debug!("exec sql failed: {e}");
                     AppError::NotFound
                 })?;
-            row
+            (row.0, row.1, false)
         }
         _ => {
             return Err(AppError::ValidateFailed("unsupported nsid".to_string()));
         }
     };
 
-    let receiver = get_ckb_addr_by_did(&state.ckb_client, &state.ckb_net, &receiver_did)
-        .await
-        .map_err(|e| {
-            debug!("get ckb addr by did failed: {e}");
-            AppError::ValidateFailed("get receiver ckb addr failed".to_string())
-        })?;
+    let receiver = if is_announcement {
+        state.bbs_ckb_addr.clone()
+    } else {
+        get_ckb_addr_by_did(&state.ckb_client, &state.ckb_net, &receiver_did)
+            .await
+            .map_err(|e| {
+                debug!("get ckb addr by did failed: {e}");
+                AppError::ValidateFailed("get receiver ckb addr failed".to_string())
+            })?
+    };
 
     let mut tip_row = TipRow {
         id: -1,
@@ -151,6 +162,23 @@ pub(crate) async fn prepare(
         created: chrono::Local::now(),
     };
 
+    let split_receivers = if is_announcement {
+        json!([])
+    } else {
+        json!([
+            {
+                "address": &state.bbs_ckb_addr,
+                "receiverDid": &state.bbs_ckb_addr,
+                "splitRate": 10
+            },
+            {
+                "address": &section_ckb_addr,
+                "receiverDid": &section_ckb_addr,
+                "splitRate": 20
+            }
+        ])
+    };
+
     let result = micro_pay::payment_prepare(
         &state.pay_url,
         &json!({
@@ -161,18 +189,7 @@ pub(crate) async fn prepare(
             "category": &tip_row.category,
             "amount": &tip_row.amount,
             "info": &tip_row.info,
-            "splitReceivers": [
-                {
-                    "address": &state.bbs_ckb_addr,
-                    "receiverDid": &state.bbs_ckb_addr,
-                    "splitRate": 10
-                },
-                {
-                    "address": &section_ckb_addr,
-                    "receiverDid": &section_ckb_addr,
-                    "splitRate": 20
-                }
-            ]
+            "splitReceivers": split_receivers
         }),
     )
     .await?;
