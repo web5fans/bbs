@@ -49,6 +49,8 @@ struct AppView {
 pub struct Args {
     #[clap(short('c'), long = "config", default_value = "config.toml")]
     config_path: String,
+    #[clap(short, long, default_value = "false")]
+    apidoc: bool,
 }
 
 #[tokio::main]
@@ -92,9 +94,12 @@ async fn main() -> Result<()> {
             .collect(),
     };
 
-    // api
-    let router = Router::new()
-        .merge(Scalar::with_url("/apidoc", ApiDoc::openapi()))
+    let router = if args.apidoc {
+        Router::new().merge(Scalar::with_url("/apidoc", ApiDoc::openapi()))
+    } else {
+        Router::new()
+    };
+    let router = router
         .route("/api/admin/update_tag", post(api::admin::update_tag))
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
