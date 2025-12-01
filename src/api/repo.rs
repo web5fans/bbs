@@ -10,7 +10,10 @@ use serde_json::{Value, json};
 use utoipa::IntoParams;
 use validator::Validate;
 
-use crate::{AppView, api::build_author, atproto::index_query, error::AppError};
+use crate::{
+    AppView, api::build_author, atproto::index_query, error::AppError,
+    lexicon::whitelist::Whitelist,
+};
 
 #[derive(Debug, Default, Validate, Deserialize, IntoParams)]
 #[serde(default)]
@@ -24,7 +27,7 @@ pub(crate) async fn profile(
     Query(query): Query<ProfileQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut author = build_author(&state, &query.repo).await;
-    if state.whitelist.is_empty() || state.whitelist.contains(&query.repo) {
+    if Whitelist::select_by_did(&state.db, &query.repo).await {
         author["highlight"] = Value::String("beta".to_owned());
     }
 

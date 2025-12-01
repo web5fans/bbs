@@ -326,7 +326,6 @@ pub(crate) async fn commented(
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
-    debug!("rows: {}", rows.len());
     let cursor = rows.last().map(|r| r.created.timestamp());
     let roots = rows
         .into_iter()

@@ -5,3 +5,4 @@ pub(crate) mod reply;
 pub(crate) mod section;
 pub(crate) mod status;
 pub(crate) mod tip;
+pub(crate) mod whitelist;

@@ -23,6 +23,7 @@ use crate::{
         post::Post,
         reply::Reply,
         section::{Section, SectionRowSample},
+        whitelist::Whitelist,
     },
 };
 
@@ -49,7 +50,7 @@ pub(crate) async fn create(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
-    if !state.whitelist.is_empty() && !state.whitelist.contains(&new_record.repo) {
+    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
         match record_type {
             NSID_POST | NSID_REPLY | NSID_COMMENT => {
                 return Err(eyre!("Operation is not allowed!").into());
@@ -137,7 +138,7 @@ pub(crate) async fn update(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
-    if !state.whitelist.is_empty() && !state.whitelist.contains(&new_record.repo) {
+    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
         match record_type {
             NSID_POST | NSID_REPLY | NSID_COMMENT => {
                 return Err(eyre!("Operation is not allowed!").into());

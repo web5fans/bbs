@@ -11,7 +11,6 @@ pub struct AppConfig {
     pub bbs_ckb_addr: String,
     pub pay_url: String,
     pub indexer: String,
-    pub whitelist: String,
     pub ckb_url: String,
     pub ckb_net: ckb_sdk::NetworkType,
 }
@@ -27,7 +26,6 @@ impl Default for AppConfig {
             bbs_ckb_addr: Default::default(),
             pay_url: Default::default(),
             indexer: Default::default(),
-            whitelist: Default::default(),
             ckb_net: ckb_sdk::NetworkType::Testnet,
         }
     }

@@ -31,6 +31,7 @@ use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
+use crate::lexicon::whitelist::Whitelist;
 
 #[derive(Clone)]
 struct AppView {
@@ -40,7 +41,6 @@ struct AppView {
     indexer: String,
     pay_url: String,
     bbs_ckb_addr: String,
-    whitelist: Vec<String>,
     ckb_net: ckb_sdk::NetworkType,
 }
 
@@ -72,6 +72,7 @@ async fn main() -> Result<()> {
     Comment::init(&db).await?;
     Reply::init(&db).await?;
     Like::init(&db).await?;
+    Whitelist::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -81,17 +82,6 @@ async fn main() -> Result<()> {
         indexer: config.indexer.clone(),
         pay_url: config.pay_url.clone(),
         ckb_net: config.ckb_net,
-        whitelist: config
-            .whitelist
-            .split(',')
-            .filter_map(|s| {
-                if s.is_empty() {
-                    None
-                } else {
-                    Some(s.to_owned())
-                }
-            })
-            .collect(),
     };
 
     let router = if args.apidoc {
