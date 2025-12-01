@@ -75,6 +75,7 @@ impl Section {
                 Section::Name,
                 Section::Owner,
                 Section::Administrators,
+                Section::Permission,
             ])
             .from(Section::Table)
             .build_sqlx(PostgresQueryBuilder);
@@ -120,11 +121,11 @@ impl Section {
             Section::Administrators,
             Section::CkbAddr,
         ])
-        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
-        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
-        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_announcement\") as announcement_count"))
-        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_top\") as top_count"))
-        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
+        .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_announcement\") as announcement_count"))
+        .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_top\") as top_count"))
+        .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"is_disabled\" is false and \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
         .from(Section::Table).take()
     }
@@ -149,6 +150,7 @@ pub struct SectionRowMini {
     pub name: String,
     pub owner: Option<String>,
     pub administrators: Option<Vec<String>>,
+    pub permission: i32,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

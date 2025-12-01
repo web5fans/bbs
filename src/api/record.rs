@@ -22,7 +22,7 @@ use crate::{
         like::Like,
         post::Post,
         reply::Reply,
-        section::{Section, SectionRowSample},
+        section::{Section, SectionRowMini},
         whitelist::Whitelist,
     },
 };
@@ -64,10 +64,18 @@ pub(crate) async fn create(
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let (sql, values) = Section::build_select()
+        let (sql, values) = sea_query::Query::select()
+            .columns([
+                Section::Id,
+                Section::Name,
+                Section::Owner,
+                Section::Administrators,
+                Section::Permission,
+            ])
+            .from(Section::Table)
             .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
             .build_sqlx(PostgresQueryBuilder);
-        let section: SectionRowSample = sqlx::query_as_with(&sql, values.clone())
+        let section: SectionRowMini = sqlx::query_as_with(&sql, values.clone())
             .fetch_one(&state.db)
             .await
             .map_err(|e| eyre!("error in section_id: {e}"))?;
@@ -153,10 +161,18 @@ pub(crate) async fn update(
                 .as_str()
                 .and_then(|s| s.parse::<i32>().ok())
                 .ok_or_eyre("error in section_id")?;
-            let (sql, values) = Section::build_select()
+            let (sql, values) = sea_query::Query::select()
+                .columns([
+                    Section::Id,
+                    Section::Name,
+                    Section::Owner,
+                    Section::Administrators,
+                    Section::Permission,
+                ])
+                .from(Section::Table)
                 .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
                 .build_sqlx(PostgresQueryBuilder);
-            let section: SectionRowSample = sqlx::query_as_with(&sql, values.clone())
+            let section: SectionRowMini = sqlx::query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
                 .map_err(|e| eyre!("error in section_id: {e}"))?;
