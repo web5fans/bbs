@@ -20,6 +20,7 @@ pub enum Post {
     IsTop,
     IsAnnouncement,
     IsDisabled,
+    IsDraft,
     ReasonsForDisabled,
     VisitedCount,
     Visited,
@@ -57,6 +58,12 @@ impl Post {
                     .not_null()
                     .default(false),
             )
+            .col(
+                ColumnDef::new(Self::IsDraft)
+                    .boolean()
+                    .not_null()
+                    .default(true),
+            )
             .col(ColumnDef::new(Self::ReasonsForDisabled).string())
             .col(
                 ColumnDef::new(Self::VisitedCount)
@@ -82,6 +89,17 @@ impl Post {
                     .timestamp_with_time_zone()
                     .not_null()
                     .default(Expr::current_timestamp()),
+            )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(
+                ColumnDef::new(Self::IsDraft)
+                    .boolean()
+                    .not_null()
+                    .default(false),
             )
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
@@ -115,6 +133,7 @@ impl Post {
             .as_str()
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .ok_or_eyre("error in created")?;
+        let is_draft = post["is_draft"].as_bool().unwrap_or(false);
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
@@ -124,6 +143,7 @@ impl Post {
                 Self::SectionId,
                 Self::Title,
                 Self::Text,
+                Self::IsDraft,
                 Self::Edited,
                 Self::Updated,
                 Self::Created,
@@ -135,6 +155,7 @@ impl Post {
                 section_id.into(),
                 title.into(),
                 text.into(),
+                is_draft.into(),
                 edited.into(),
                 Expr::current_timestamp(),
                 created.into(),
@@ -148,6 +169,7 @@ impl Post {
                         Self::SectionId,
                         Self::Title,
                         Self::Text,
+                        Self::IsDraft,
                         Self::Edited,
                         Self::Updated,
                     ])
@@ -204,6 +226,7 @@ impl Post {
             (Post::Table, Post::IsTop),
             (Post::Table, Post::IsAnnouncement),
             (Post::Table, Post::IsDisabled),
+            (Post::Table, Post::IsDraft),
             (Post::Table, Post::ReasonsForDisabled),
             (Post::Table, Post::VisitedCount),
             (Post::Table, Post::Visited),
@@ -240,6 +263,7 @@ pub struct PostRow {
     pub is_top: bool,
     pub is_announcement: bool,
     pub is_disabled: bool,
+    pub is_draft: bool,
     pub reasons_for_disabled: Option<String>,
     pub visited_count: i32,
     pub visited: DateTime<Local>,
@@ -265,6 +289,7 @@ pub struct PostView {
     pub is_top: bool,
     pub is_announcement: bool,
     pub is_disabled: bool,
+    pub is_draft: bool,
     pub reasons_for_disabled: Option<String>,
     pub visited_count: String,
     pub visited: DateTime<Local>,
@@ -290,6 +315,7 @@ impl PostView {
             is_top: row.is_top,
             is_announcement: row.is_announcement,
             is_disabled: row.is_disabled,
+            is_draft: row.is_draft,
             reasons_for_disabled: row.reasons_for_disabled,
             visited_count: row.visited_count.to_string(),
             visited: row.visited,
@@ -316,6 +342,7 @@ pub struct PostRepliedView {
     pub is_top: bool,
     pub is_announcement: bool,
     pub is_disabled: bool,
+    pub is_draft: bool,
     pub reasons_for_disabled: Option<String>,
     pub comment_text: String,
     pub comment_created: DateTime<Local>,
@@ -349,6 +376,7 @@ impl PostRepliedView {
             is_top: row.is_top,
             is_announcement: row.is_announcement,
             is_disabled: row.is_disabled,
+            is_draft: row.is_draft,
             reasons_for_disabled: row.reasons_for_disabled,
             visited_count: row.visited_count.to_string(),
             visited: row.visited,
