@@ -5,7 +5,7 @@ use axum_extra::{
 use color_eyre::eyre::{OptionExt, eyre};
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
-    ok,
+    ok, ok_simple,
 };
 use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -231,4 +231,49 @@ pub(crate) async fn update(
     }
 
     Ok(ok(result))
+}
+
+#[utoipa::path(post, path = "/api/record/delete")]
+pub(crate) async fn delete(
+    State(state): State<AppView>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
+    Json(new_record): Json<NewRecord>,
+) -> Result<impl IntoResponse, AppError> {
+    let record_type = new_record
+        .value
+        .get("$type")
+        .map(|t| t.as_str())
+        .ok_or_eyre("'$type' must be set")?
+        .ok_or_eyre("'$type' must be set")?;
+    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+        match record_type {
+            NSID_POST | NSID_REPLY | NSID_COMMENT => {
+                return Err(eyre!("Operation is not allowed!").into());
+            }
+            _ => {}
+        }
+    }
+
+    let uri = format!(
+        "at://{}/{}/{}",
+        new_record.repo, record_type, new_record.rkey
+    );
+    Post::delete(&state.db, &uri).await?;
+    direct_writes(
+        &state.pds,
+        auth.token(),
+        &new_record.repo,
+        &json!([{
+            "$type": "fans.web5.ckb.directWrites#delete",
+            "collection": new_record.value["$type"],
+            "rkey": new_record.rkey
+        }]),
+        &new_record.signing_key,
+        &new_record.ckb_addr,
+        &new_record.root,
+    )
+    .await
+    .map_err(|e| AppError::RpcFailed(e.to_string()))?;
+
+    Ok(ok_simple())
 }

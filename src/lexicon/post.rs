@@ -251,6 +251,41 @@ impl Post {
             Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
         ).take()
     }
+
+    pub fn build_draft_select() -> sea_query::SelectStatement {
+        sea_query::Query::select()
+            .columns([
+                (Post::Table, Post::Uri),
+                (Post::Table, Post::Cid),
+                (Post::Table, Post::Repo),
+                (Post::Table, Post::Title),
+                (Post::Table, Post::Text),
+                (Post::Table, Post::IsDraft),
+                (Post::Table, Post::Edited),
+                (Post::Table, Post::Updated),
+                (Post::Table, Post::Created),
+            ])
+            .columns([
+                (Section::Table, Section::Id),
+                (Section::Table, Section::Name),
+            ])
+            .from(Post::Table)
+            .left_join(
+                Section::Table,
+                Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
+            )
+            .and_where(Expr::col((Post::Table, Post::IsDraft)).eq(true))
+            .take()
+    }
+
+    pub async fn delete(db: &Pool<Postgres>, uri: &str) -> Result<()> {
+        let (sql, values) = sea_query::Query::delete()
+            .from_table(Self::Table)
+            .and_where(Expr::col(Self::Uri).eq(uri))
+            .build_sqlx(PostgresQueryBuilder);
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -277,6 +312,56 @@ pub struct PostRow {
     pub comment_count: i64,
     pub like_count: i64,
     pub liked: bool,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct PostDraftRow {
+    pub uri: String,
+    pub cid: String,
+    pub repo: String,
+    pub title: String,
+    pub text: String,
+    pub is_draft: bool,
+    pub edited: Option<DateTime<Local>>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+    #[sqlx(rename = "id")]
+    pub section_id: i32,
+    #[sqlx(rename = "name")]
+    pub section: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PostDraftView {
+    pub uri: String,
+    pub cid: String,
+    pub author: Value,
+    pub title: String,
+    pub text: String,
+    pub is_draft: bool,
+    pub edited: Option<DateTime<Local>>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+    pub section_id: String,
+    pub section: String,
+}
+
+impl PostDraftView {
+    pub fn build(row: PostDraftRow, author: Value) -> Self {
+        Self {
+            uri: row.uri,
+            cid: row.cid,
+            author,
+            title: row.title,
+            text: row.text,
+            is_draft: row.is_draft,
+            edited: row.edited,
+            updated: row.updated,
+            created: row.created,
+            section_id: row.section_id.to_string(),
+            section: row.section,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]

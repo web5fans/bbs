@@ -36,12 +36,14 @@ pub(crate) mod tip;
         admin::update_tag,
         record::create,
         record::update,
+        record::delete,
         section::list,
         section::detail,
         post::list,
         post::top,
         post::detail,
         post::commented,
+        post::list_draft,
         comment::list,
         reply::list,
         repo::profile,
@@ -61,6 +63,7 @@ pub(crate) mod tip;
         record::NewRecord,
         post::PostQuery,
         post::TopQuery,
+        post::DraftQuery,
         comment::CommentQuery,
         reply::ReplyQuery,
         like::LikeQuery,
@@ -168,7 +171,7 @@ impl<T: SignedParam> SignedBody<T> {
             chrono::DateTime::from_timestamp_secs(self.params.timestamp()).unwrap_or_default();
         let now = chrono::Utc::now();
         let delta = (now - timestamp).abs();
-        if delta < chrono::Duration::minutes(5) {
+        if delta > chrono::Duration::minutes(5) {
             return Err(eyre!("timestamp is invalid"));
         }
 

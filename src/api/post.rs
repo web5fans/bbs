@@ -24,7 +24,7 @@ use crate::{
     error::AppError,
     lexicon::{
         comment::{Comment, CommentRow},
-        post::{Post, PostRepliedView, PostRow, PostView},
+        post::{Post, PostDraftRow, PostDraftView, PostRepliedView, PostRow, PostView},
         section::Section,
     },
     micro_pay,
@@ -397,4 +397,69 @@ pub(crate) async fn commented(
         })
     };
     Ok(ok(result))
+}
+
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct DraftQuery {
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+    pub repo: String,
+}
+
+impl Default for DraftQuery {
+    fn default() -> Self {
+        Self {
+            page: 1,
+            per_page: 20,
+            repo: Default::default(),
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/post/list_draft")]
+pub(crate) async fn list_draft(
+    State(state): State<AppView>,
+    Json(query): Json<DraftQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let offset = query.per_page * (query.page - 1);
+    let (sql, values) = Post::build_draft_select()
+        .and_where(Expr::col((Post::Table, Post::Repo)).eq(&query.repo))
+        .order_by(Comment::Updated, Order::Desc)
+        .offset(offset)
+        .limit(query.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<PostDraftRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let mut views = vec![];
+    for row in rows {
+        let author = build_author(&state, &row.repo).await;
+
+        views.push(PostDraftView::build(row, author));
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Post::Table, Post::Uri)).count())
+        .from(Post::Table)
+        .and_where(Expr::col((Post::Table, Post::Repo)).eq(&query.repo))
+        .and_where(Expr::col((Post::Table, Post::IsDraft)).eq(true))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    Ok(ok(json!({
+        "posts": views,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total.0
+    })))
 }
