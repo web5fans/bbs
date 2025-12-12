@@ -1,4 +1,4 @@
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::Result;
 use common_x::restful::{
     axum::{
         Json,
@@ -7,7 +7,6 @@ use common_x::restful::{
     },
     ok,
 };
-use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
@@ -18,11 +17,10 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::build_author,
+    api::{SignedBody, SignedParam, build_author},
     atproto::{NSID_COMMENT, NSID_COMMUNITY, NSID_POST, NSID_REPLY, NSID_SECTION},
     ckb::get_ckb_addr_by_did,
     error::AppError,
-    indexer::did_document,
     lexicon::{
         comment::Comment,
         post::Post,
@@ -40,26 +38,25 @@ pub(crate) struct TipParams {
     pub uri: String,
     pub sender: String,
     pub amount: String,
+    pub timestamp: i64,
 }
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
-#[serde(default)]
-pub(crate) struct TipBody {
-    pub params: TipParams,
-    pub did: String,
-    #[validate(length(equal = 57))]
-    pub signing_key_did: String,
-    pub signed_bytes: String,
+impl SignedParam for TipParams {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
 }
 
 #[utoipa::path(post, path = "/api/tip/prepare")]
 pub(crate) async fn prepare(
     State(state): State<AppView>,
-    Json(body): Json<TipBody>,
+    Json(body): Json<SignedBody<TipParams>>,
 ) -> Result<impl IntoResponse, AppError> {
     body.validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
-    validate_signed(&state.indexer, &body).await?;
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
     let (receiver_did, section_ckb_addr, is_announcement) = match body.params.nsid.as_str() {
         NSID_POST => {
@@ -454,42 +451,6 @@ pub(crate) async fn stats(
 ) -> Result<impl IntoResponse, AppError> {
     let result = micro_pay::payment_did_stats(&state.pay_url, &query.did).await?;
     Ok(ok(result))
-}
-
-async fn validate_signed(indexer: &str, body: &TipBody) -> Result<(), AppError> {
-    let did_doc = did_document(indexer, body.did.as_str())
-        .await
-        .map_err(|e| {
-            debug!("call indexer failed: {e}");
-            AppError::ValidateFailed("get did doc failed".to_string())
-        })?;
-    if body.signing_key_did
-        != did_doc
-            .pointer("/verificationMethods/atproto")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-    {
-        return Err(AppError::ValidateFailed(
-            "signing_key_did not match".to_string(),
-        ));
-    }
-    let verifying_key: VerifyingKey = body
-        .signing_key_did
-        .split_once("did:key:z")
-        .and_then(|(_, key)| {
-            let bytes = bs58::decode(key).into_vec().ok()?;
-            VerifyingKey::from_sec1_bytes(&bytes[2..]).ok()
-        })
-        .ok_or_else(|| AppError::ValidateFailed("invalid signing_key_did".to_string()))?;
-    let signature = hex::decode(&body.signed_bytes)
-        .map(|bytes| Signature::from_slice(&bytes).map_err(|e| eyre!(e)))??;
-    let unsigned_bytes = serde_ipld_dagcbor::to_vec(&body.params)?;
-    verifying_key
-        .verify(&unsigned_bytes, &signature)
-        .map_err(|e| {
-            debug!("verify signature failed: {e}");
-            AppError::ValidateFailed("verify signature failed".to_string())
-        })
 }
 
 async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {

@@ -1,14 +1,11 @@
-use color_eyre::eyre::eyre;
 use common_x::restful::axum::{Json, extract::State, response::IntoResponse};
 use common_x::restful::ok;
-use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::api::build_author;
-use crate::indexer::did_document;
+use crate::api::{SignedBody, SignedParam, build_author};
 use crate::lexicon::tip::{TipCategory, TipRow, TipState, TipView};
 use crate::micro_pay;
 use crate::{AppView, error::AppError};
@@ -20,26 +17,25 @@ pub(crate) struct DonateParams {
     pub ckb_addr: String,
     pub sender: String,
     pub amount: String,
+    pub timestamp: i64,
 }
 
-#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
-#[serde(default)]
-pub(crate) struct DonateBody {
-    pub params: DonateParams,
-    pub did: String,
-    #[validate(length(equal = 57))]
-    pub signing_key_did: String,
-    pub signed_bytes: String,
+impl SignedParam for DonateParams {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
 }
 
 #[utoipa::path(post, path = "/api/donate/prepare")]
 pub(crate) async fn prepare(
     State(state): State<AppView>,
-    Json(body): Json<DonateBody>,
+    Json(body): Json<SignedBody<DonateParams>>,
 ) -> Result<impl IntoResponse, AppError> {
     body.validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
-    validate_signed(&state.indexer, &body).await?;
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
     let mut tip_row = TipRow {
         id: -1,
@@ -112,40 +108,4 @@ pub(crate) async fn transfer(
 ) -> Result<impl IntoResponse, AppError> {
     let result = micro_pay::payment_transfer(&state.pay_url, &body).await?;
     Ok(ok(result))
-}
-
-async fn validate_signed(indexer: &str, body: &DonateBody) -> Result<(), AppError> {
-    let did_doc = did_document(indexer, body.did.as_str())
-        .await
-        .map_err(|e| {
-            debug!("call indexer failed: {e}");
-            AppError::ValidateFailed("get did doc failed".to_string())
-        })?;
-    if body.signing_key_did
-        != did_doc
-            .pointer("/verificationMethods/atproto")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-    {
-        return Err(AppError::ValidateFailed(
-            "signing_key_did not match".to_string(),
-        ));
-    }
-    let verifying_key: VerifyingKey = body
-        .signing_key_did
-        .split_once("did:key:z")
-        .and_then(|(_, key)| {
-            let bytes = bs58::decode(key).into_vec().ok()?;
-            VerifyingKey::from_sec1_bytes(&bytes[2..]).ok()
-        })
-        .ok_or_else(|| AppError::ValidateFailed("invalid signing_key_did".to_string()))?;
-    let signature = hex::decode(&body.signed_bytes)
-        .map(|bytes| Signature::from_slice(&bytes).map_err(|e| eyre!(e)))??;
-    let unsigned_bytes = serde_ipld_dagcbor::to_vec(&body.params)?;
-    verifying_key
-        .verify(&unsigned_bytes, &signature)
-        .map_err(|e| {
-            debug!("verify signature failed: {e}");
-            AppError::ValidateFailed("verify signature failed".to_string())
-        })
 }

@@ -1,12 +1,15 @@
-use color_eyre::eyre::OptionExt;
+use color_eyre::eyre::{OptionExt, eyre};
+use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use sea_query::{BinOper, Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::query_as_with;
 use utoipa::{
-    Modify, OpenApi,
+    Modify, OpenApi, ToSchema,
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
 };
+use validator::Validate;
 
 use crate::{
     AppView,
@@ -54,20 +57,17 @@ pub(crate) mod tip;
         donate::transfer,
     ),
     components(schemas(
-        admin::UpdateTagParams,
-        admin::UpdateTagBody,
+        SignedBody<admin::UpdateTagParams>,
         record::NewRecord,
         post::PostQuery,
         post::TopQuery,
         comment::CommentQuery,
         reply::ReplyQuery,
         like::LikeQuery,
-        tip::TipParams,
-        tip::TipBody,
+        SignedBody<tip::TipParams>,
         tip::TipsQuery,
         tip::DetailQuery,
-        donate::DonateParams,
-        donate::DonateBody,
+        SignedBody<donate::DonateParams>,
     ))
 )]
 pub struct ApiDoc;
@@ -146,4 +146,61 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     author["comment_count"] = Value::String(comment_count_row.0.to_string());
     author["like_count"] = Value::String(like_count_row.0.to_string());
     author
+}
+
+pub trait SignedParam: Default + ToSchema + Serialize + Validate {
+    fn timestamp(&self) -> i64;
+}
+
+#[derive(Default, ToSchema, Serialize, Deserialize, Validate)]
+pub struct SignedBody<SignedParam> {
+    pub params: SignedParam,
+    pub did: String,
+    #[validate(length(equal = 57))]
+    pub signing_key_did: String,
+    pub signed_bytes: String,
+}
+
+impl<T: SignedParam> SignedBody<T> {
+    pub async fn verify_signature(&self, indexer_did_url: &str) -> color_eyre::Result<()> {
+        // verify timestamp
+        let timestamp =
+            chrono::DateTime::from_timestamp_secs(self.params.timestamp()).unwrap_or_default();
+        let now = chrono::Utc::now();
+        let delta = (now - timestamp).abs();
+        if delta < chrono::Duration::minutes(5) {
+            return Err(eyre!("timestamp is invalid"));
+        }
+
+        // verify did
+        let did_doc = crate::indexer::did_document(indexer_did_url, &self.did)
+            .await
+            .map_err(|e| eyre!("get did doc failed: {e}"))?;
+
+        if self.signing_key_did
+            != did_doc
+                .pointer("/verificationMethods/atproto")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+        {
+            return Err(eyre!("signing_key_did not match"));
+        }
+
+        // verify signature
+        let verifying_key: VerifyingKey = self
+            .signing_key_did
+            .split_once("did:key:z")
+            .and_then(|(_, key)| {
+                let bytes = bs58::decode(key).into_vec().ok()?;
+                VerifyingKey::from_sec1_bytes(&bytes[2..]).ok()
+            })
+            .ok_or_eyre("invalid signing_key_did")?;
+        let signature = hex::decode(self.signed_bytes.clone())
+            .map(|bytes| Signature::from_slice(&bytes).map_err(|e| eyre!(e)))??;
+
+        let unsigned_bytes = serde_ipld_dagcbor::to_vec(&self.params)?;
+        verifying_key
+            .verify(&unsigned_bytes, &signature)
+            .map_err(|e| eyre!("verify signature failed: {e}"))
+    }
 }
