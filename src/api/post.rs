@@ -162,21 +162,20 @@ pub(crate) async fn top(
     let section_id: i32 = query.section_id.parse()?;
 
     let (sql, values) = sea_query::Query::select()
-        .columns([Section::Id, Section::Administrators])
+        .columns([Section::Id, Section::Administrators, Section::Owner])
         .from(Section::Table)
         .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
         .build_sqlx(PostgresQueryBuilder);
-    let section: (i32, Option<Vec<String>>) = query_as_with(&sql, values.clone())
+    let section: (i32, Option<Vec<String>>, String) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
-    let administrators = if let Some(administrators) = section.1 {
+    let administrators = if let Some(mut administrators) = section.1 {
+        administrators.push(section.2);
         administrators
     } else {
-        return Ok(ok(json!({
-            "posts": []
-        })));
+        vec![section.2]
     };
 
     if administrators.is_empty() {
