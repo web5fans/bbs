@@ -105,6 +105,7 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .expr(Expr::col((Post::Table, Post::Uri)).count())
         .from(Post::Table)
         .and_where(Expr::col(Post::Repo).eq(repo))
+        .and_where(Expr::col(Post::IsDraft).eq(false))
         .and_where(Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0))
         .build_sqlx(PostgresQueryBuilder);
     let post_count_row: (i64,) = query_as_with(&sql, values.clone())

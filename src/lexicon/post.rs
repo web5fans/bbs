@@ -249,7 +249,8 @@ impl Post {
         .left_join(
             Section::Table,
             Expr::col((Post::Table, Post::SectionId)).equals((Section::Table, Section::Id)),
-        ).take()
+        )
+        .and_where(Expr::col((Post::Table, Post::IsDraft)).eq(false)).take()
     }
 
     pub fn build_draft_select() -> sea_query::SelectStatement {
