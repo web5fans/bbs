@@ -44,6 +44,7 @@ pub(crate) mod tip;
         post::detail,
         post::commented,
         post::list_draft,
+        post::detail_draft,
         comment::list,
         reply::list,
         repo::profile,

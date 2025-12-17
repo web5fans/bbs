@@ -463,3 +463,27 @@ pub(crate) async fn list_draft(
         "total":  total.0
     })))
 }
+
+#[utoipa::path(get, path = "/api/post/detail_draft", params(DetailQuery))]
+pub(crate) async fn detail_draft(
+    State(state): State<AppView>,
+    Query(query): Query<DetailQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let uri = query.uri;
+
+    let (sql, values) = Post::build_draft_select()
+        .and_where(Expr::col(Post::Uri).eq(uri))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let row: PostDraftRow = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| {
+            debug!("exec sql failed: {e}");
+            AppError::NotFound
+        })?;
+
+    let author = build_author(&state, &row.repo).await;
+
+    Ok(ok(PostDraftView::build(row, author)))
+}

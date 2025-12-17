@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
         .route("/api/post/detail", get(api::post::detail))
         .route("/api/post/commented", post(api::post::commented))
         .route("/api/post/list_draft", post(api::post::list_draft))
+        .route("/api/post/detail_draft", post(api::post::detail_draft))
         .route("/api/comment/list", post(api::comment::list))
         .route("/api/reply/list", post(api::reply::list))
         .route("/api/repo/profile", get(api::repo::profile))
