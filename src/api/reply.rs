@@ -72,6 +72,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
             (Reply::Table, Reply::Text),
             (Reply::Table, Reply::IsDisabled),
             (Reply::Table, Reply::ReasonsForDisabled),
+            (Reply::Table, Reply::Edited),
             (Reply::Table, Reply::Updated),
             (Reply::Table, Reply::Created),
         ])
@@ -136,6 +137,7 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
                 text: row.text,
                 is_disabled: row.is_disabled,
                 reasons_for_disabled: row.reasons_for_disabled,
+                edited: row.edited,
                 updated: row.updated,
                 created: row.created,
                 like_count: row.like_count.to_string(),

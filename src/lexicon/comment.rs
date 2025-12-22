@@ -19,6 +19,7 @@ pub enum Comment {
     Text,
     IsDisabled,
     ReasonsForDisabled,
+    Edited,
     Updated,
     Created,
 }
@@ -41,6 +42,7 @@ impl Comment {
                     .default(false),
             )
             .col(ColumnDef::new(Self::ReasonsForDisabled).string())
+            .col(ColumnDef::new(Self::Edited).timestamp_with_time_zone())
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -53,6 +55,12 @@ impl Comment {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(ColumnDef::new(Self::Edited).timestamp_with_time_zone())
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
         Ok(())
@@ -77,6 +85,9 @@ impl Comment {
             .as_str()
             .map(|s| s.trim_matches('\"'))
             .ok_or_eyre("error in text")?;
+        let edited = comment["edited"]
+            .as_str()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
         let created = comment["created"]
             .as_str()
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
@@ -90,6 +101,7 @@ impl Comment {
                 Self::SectionId,
                 Self::Post,
                 Self::Text,
+                Self::Edited,
                 Self::Updated,
                 Self::Created,
             ])
@@ -100,6 +112,7 @@ impl Comment {
                 section_id.into(),
                 post.into(),
                 text.into(),
+                edited.into(),
                 Expr::current_timestamp(),
                 created.into(),
             ])?
@@ -112,6 +125,7 @@ impl Comment {
                         Self::SectionId,
                         Self::Post,
                         Self::Text,
+                        Self::Edited,
                         Self::Updated,
                     ])
                     .to_owned(),
@@ -140,6 +154,7 @@ impl Comment {
             (Self::Table, Self::Text),
             (Self::Table, Self::IsDisabled),
             (Self::Table, Self::ReasonsForDisabled),
+            (Self::Table, Self::Edited),
             (Self::Table, Self::Updated),
             (Self::Table, Self::Created),
         ])
@@ -190,6 +205,7 @@ pub struct CommentRow {
     pub text: String,
     pub is_disabled: bool,
     pub reasons_for_disabled: Option<String>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
@@ -206,6 +222,7 @@ pub struct CommentView {
     pub text: String,
     pub is_disabled: bool,
     pub reasons_for_disabled: Option<String>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,
@@ -225,6 +242,7 @@ impl CommentView {
             text: row.text,
             is_disabled: row.is_disabled,
             reasons_for_disabled: row.reasons_for_disabled,
+            edited: row.edited,
             updated: row.updated,
             created: row.created,
             like_count: row.like_count.to_string(),

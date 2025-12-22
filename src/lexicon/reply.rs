@@ -21,6 +21,7 @@ pub enum Reply {
     Text,
     IsDisabled,
     ReasonsForDisabled,
+    Edited,
     Updated,
     Created,
 }
@@ -50,6 +51,7 @@ impl Reply {
                     .default(false),
             )
             .col(ColumnDef::new(Self::ReasonsForDisabled).string())
+            .col(ColumnDef::new(Self::Edited).timestamp_with_time_zone())
             .col(
                 ColumnDef::new(Self::Updated)
                     .timestamp_with_time_zone()
@@ -62,6 +64,12 @@ impl Reply {
                     .not_null()
                     .default(Expr::current_timestamp()),
             )
+            .build(PostgresQueryBuilder);
+        db.execute(query(&sql)).await?;
+
+        let sql = sea_query::Table::alter()
+            .table(Self::Table)
+            .add_column_if_not_exists(ColumnDef::new(Self::Edited).timestamp_with_time_zone())
             .build(PostgresQueryBuilder);
         db.execute(query(&sql)).await?;
         Ok(())
@@ -94,6 +102,9 @@ impl Reply {
             .as_str()
             .map(|s| s.trim_matches('\"'))
             .ok_or_eyre("error in text")?;
+        let edited = reply["edited"]
+            .as_str()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok());
         let created = reply["created"]
             .as_str()
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
@@ -109,6 +120,7 @@ impl Reply {
                 Self::Comment,
                 Self::To,
                 Self::Text,
+                Self::Edited,
                 Self::Updated,
                 Self::Created,
             ])
@@ -121,6 +133,7 @@ impl Reply {
                 comment.into(),
                 to.into(),
                 text.into(),
+                edited.into(),
                 Expr::current_timestamp(),
                 created.into(),
             ])?
@@ -135,6 +148,7 @@ impl Reply {
                         Self::Comment,
                         Self::To,
                         Self::Text,
+                        Self::Edited,
                         Self::Updated,
                     ])
                     .to_owned(),
@@ -191,6 +205,7 @@ pub struct ReplyRow {
     pub text: String,
     pub is_disabled: bool,
     pub reasons_for_disabled: Option<String>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: i64,
@@ -208,6 +223,7 @@ pub struct ReplyView {
     pub text: String,
     pub is_disabled: bool,
     pub reasons_for_disabled: Option<String>,
+    pub edited: Option<DateTime<Local>>,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
     pub like_count: String,

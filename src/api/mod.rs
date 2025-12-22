@@ -22,6 +22,7 @@ pub(crate) mod admin;
 pub(crate) mod comment;
 pub(crate) mod donate;
 pub(crate) mod like;
+pub(crate) mod notify;
 pub(crate) mod post;
 pub(crate) mod record;
 pub(crate) mod reply;
@@ -58,6 +59,8 @@ pub(crate) mod tip;
         tip::stats,
         donate::prepare,
         donate::transfer,
+        notify::list,
+        notify::read,
     ),
     components(schemas(
         SignedBody<admin::UpdateTagParams>,
@@ -72,6 +75,7 @@ pub(crate) mod tip;
         tip::TipsQuery,
         tip::DetailQuery,
         SignedBody<donate::DonateParams>,
+        notify::NotifyReadQuery,
     ))
 )]
 pub struct ApiDoc;

@@ -27,6 +27,7 @@ use crate::api::ApiDoc;
 use crate::config::AppConfig;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
+use crate::lexicon::notify::Notify;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
@@ -73,6 +74,7 @@ async fn main() -> Result<()> {
     Reply::init(&db).await?;
     Like::init(&db).await?;
     Whitelist::init(&db).await?;
+    Notify::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -115,6 +117,8 @@ async fn main() -> Result<()> {
         .route("/api/tip/stats", get(api::tip::stats))
         .route("/api/donate/prepare", post(api::donate::prepare))
         .route("/api/donate/transfer", post(api::donate::transfer))
+        .route("/api/notify/list", post(api::notify::list))
+        .route("/api/notify/read", post(api::notify::read))
         .layer((TimeoutLayer::with_status_code(
             reqwest::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(10),
