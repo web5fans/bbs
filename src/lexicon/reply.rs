@@ -6,7 +6,11 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
-use crate::lexicon::post::Post;
+use crate::lexicon::{
+    notify::{Notify, NotifyRow, NotifyType},
+    post::Post,
+    resolve_uri,
+};
 
 #[derive(Iden)]
 pub enum Reply {
@@ -163,6 +167,27 @@ impl Reply {
             .and_where(Expr::col(Post::Uri).eq(comment))
             .build_sqlx(PostgresQueryBuilder);
         db.execute(query_with(&sql, values)).await.ok();
+
+        // notify
+
+        let (receiver, _nsid, _rkey) = resolve_uri(comment)?;
+        Notify::insert(
+            db,
+            &NotifyRow {
+                id: 0,
+                title: "New Reply".to_string(),
+                sender: repo.to_string(),
+                receiver: receiver.to_string(),
+                n_type: NotifyType::NewReply as i32,
+                target_uri: comment.to_string(),
+                amount: 0,
+                readed: None,
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
+
         Ok(())
     }
 

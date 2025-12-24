@@ -5,16 +5,29 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
+use utoipa::ToSchema;
 
-#[derive(Iden)]
+#[derive(Debug, Clone, Copy, ToSchema)]
+pub enum NotifyType {
+    NewComment = 0,
+    NewReply = 1,
+    NewLike = 2,
+    NewTip = 3,
+    NewDonate = 4,
+    BeHidden = 5,
+    BeDisplayed = 6,
+}
+
+#[derive(Iden, Debug, Clone, Copy)]
 pub enum Notify {
     Table,
     Id,
     Title,
     Sender,
     Receiver,
-    TargetNSID,
-    TargetDID,
+    NType,
+    TargetUri,
+    Amount,
     Readed,
     Created,
 }
@@ -34,8 +47,14 @@ impl Notify {
             .col(ColumnDef::new(Self::Title).string().not_null())
             .col(ColumnDef::new(Self::Sender).string().not_null())
             .col(ColumnDef::new(Self::Receiver).string().not_null())
-            .col(ColumnDef::new(Self::TargetNSID).string().not_null())
-            .col(ColumnDef::new(Self::TargetDID).string().not_null())
+            .col(ColumnDef::new(Self::NType).integer().not_null())
+            .col(ColumnDef::new(Self::TargetUri).string().not_null())
+            .col(
+                ColumnDef::new(Self::Amount)
+                    .big_integer()
+                    .not_null()
+                    .default(0),
+            )
             .col(ColumnDef::new(Self::Readed).timestamp_with_time_zone())
             .col(
                 ColumnDef::new(Self::Created)
@@ -56,8 +75,9 @@ impl Notify {
                 Notify::Title,
                 Notify::Sender,
                 Notify::Receiver,
-                Notify::TargetNSID,
-                Notify::TargetDID,
+                Notify::NType,
+                Notify::TargetUri,
+                Notify::Amount,
                 Notify::Readed,
                 Notify::Created,
             ])
@@ -72,8 +92,9 @@ impl Notify {
                 Notify::Title,
                 Notify::Sender,
                 Notify::Receiver,
-                Notify::TargetNSID,
-                Notify::TargetDID,
+                Notify::NType,
+                Notify::TargetUri,
+                Notify::Amount,
                 Notify::Readed,
                 Notify::Created,
             ])
@@ -81,8 +102,9 @@ impl Notify {
                 notify.title.clone().into(),
                 notify.sender.clone().into(),
                 notify.receiver.clone().into(),
-                notify.target_nsid.clone().into(),
-                notify.target_did.clone().into(),
+                notify.n_type.into(),
+                notify.target_uri.clone().into(),
+                notify.amount.into(),
                 notify.readed.into(),
                 Expr::current_timestamp(),
             ])?
@@ -101,8 +123,9 @@ pub struct NotifyRow {
     pub title: String,
     pub sender: String,
     pub receiver: String,
-    pub target_nsid: String,
-    pub target_did: String,
+    pub n_type: i32,
+    pub target_uri: String,
+    pub amount: i64,
     pub readed: Option<DateTime<Local>>,
     pub created: DateTime<Local>,
 }
@@ -113,9 +136,10 @@ pub struct NotifyView {
     pub title: String,
     pub sender: Value,
     pub receiver: Value,
-    pub target_nsid: String,
-    pub target_did: String,
+    pub n_type: String,
+    pub target_uri: String,
     pub target: Value,
+    pub amount: i64,
     pub readed: Option<DateTime<Local>>,
     pub created: DateTime<Local>,
 }

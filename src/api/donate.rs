@@ -6,6 +6,8 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::api::{SignedBody, SignedParam, build_author};
+use crate::lexicon::notify::{Notify, NotifyRow, NotifyType};
+use crate::lexicon::resolve_uri;
 use crate::lexicon::tip::{TipCategory, TipRow, TipState, TipView};
 use crate::micro_pay;
 use crate::{AppView, error::AppError};
@@ -107,5 +109,35 @@ pub(crate) async fn transfer(
     Json(body): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let result = micro_pay::payment_transfer(&state.pay_url, &body).await?;
+    if let Some(id) = result.get("paymentId").and_then(|id| id.as_i64()) {
+        let payment = micro_pay::payment(&state.pay_url, id).await?;
+        if let Some(info) = payment.pointer("/payment/info").and_then(|i| i.as_str())
+            && let Some(sender) = payment
+                .pointer("/payment/senderDid")
+                .and_then(|i| i.as_str())
+            && let Some(amount) = payment.pointer("/payment/amount").and_then(|i| i.as_str())
+        {
+            let (_nsid, to) = info.split_once("/").unwrap_or(("", ""));
+            // notify
+            if let Ok((receiver, _nsid, _rkey)) = resolve_uri(to) {
+                Notify::insert(
+                    &state.db,
+                    &NotifyRow {
+                        id: 0,
+                        title: "New Donate".to_string(),
+                        sender: sender.to_string(),
+                        receiver: receiver.to_string(),
+                        n_type: NotifyType::NewDonate as i32,
+                        target_uri: to.to_string(),
+                        amount: amount.parse::<i64>().unwrap_or(0),
+                        readed: None,
+                        created: chrono::Local::now(),
+                    },
+                )
+                .await
+                .ok();
+            }
+        }
+    }
     Ok(ok(result))
 }

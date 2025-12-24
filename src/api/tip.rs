@@ -23,8 +23,10 @@ use crate::{
     error::AppError,
     lexicon::{
         comment::Comment,
+        notify::{Notify, NotifyRow, NotifyType},
         post::Post,
         reply::Reply,
+        resolve_uri,
         section::Section,
         tip::{TipCategory, TipRow, TipState, TipView},
     },
@@ -239,6 +241,36 @@ pub(crate) async fn transfer(
     Json(body): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let result = micro_pay::payment_transfer(&state.pay_url, &body).await?;
+    if let Some(id) = result.get("paymentId").and_then(|id| id.as_i64()) {
+        let payment = micro_pay::payment(&state.pay_url, id).await?;
+        if let Some(info) = payment.pointer("/payment/info").and_then(|i| i.as_str())
+            && let Some(sender) = payment
+                .pointer("/payment/senderDid")
+                .and_then(|i| i.as_str())
+            && let Some(amount) = payment.pointer("/payment/amount").and_then(|i| i.as_str())
+        {
+            let (_nsid, to) = info.split_once("/").unwrap_or(("", ""));
+            // notify
+            if let Ok((receiver, _nsid, _rkey)) = resolve_uri(to) {
+                Notify::insert(
+                    &state.db,
+                    &NotifyRow {
+                        id: 0,
+                        title: "New Tip".to_string(),
+                        sender: sender.to_string(),
+                        receiver: receiver.to_string(),
+                        n_type: NotifyType::NewTip as i32,
+                        target_uri: to.to_string(),
+                        amount: amount.parse::<i64>().unwrap_or(0),
+                        readed: None,
+                        created: chrono::Local::now(),
+                    },
+                )
+                .await
+                .ok();
+            }
+        }
+    }
     Ok(ok(result))
 }
 

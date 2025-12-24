@@ -15,7 +15,13 @@ use crate::{
     api::{SignedBody, SignedParam},
     atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY},
     error::AppError,
-    lexicon::{comment::Comment, post::Post, reply::Reply, section::Section},
+    lexicon::{
+        comment::Comment,
+        notify::{Notify, NotifyRow, NotifyType},
+        post::Post,
+        reply::Reply,
+        section::Section,
+    },
 };
 
 #[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
@@ -140,6 +146,46 @@ pub(crate) async fn update_tag(
                 .await?;
             }
             _ => return Err(eyre!("nsid is not allowed!").into()),
+        }
+
+        // notify
+        if let Some(true) = body.params.is_disabled {
+            let (receiver, _nsid, _rkey) = crate::lexicon::resolve_uri(&body.params.uri)?;
+            Notify::insert(
+                &state.db,
+                &NotifyRow {
+                    id: 0,
+                    title: "Be Hidden".to_string(),
+                    sender: body.did.to_string(),
+                    receiver: receiver.to_string(),
+                    n_type: NotifyType::BeHidden as i32,
+                    target_uri: body.params.uri.to_string(),
+                    amount: 0,
+                    readed: None,
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
+        if let Some(false) = body.params.is_disabled {
+            let (receiver, _nsid, _rkey) = crate::lexicon::resolve_uri(&body.params.uri)?;
+            Notify::insert(
+                &state.db,
+                &NotifyRow {
+                    id: 0,
+                    title: "Be Displayed".to_string(),
+                    sender: body.did.to_string(),
+                    receiver: receiver.to_string(),
+                    n_type: NotifyType::BeDisplayed as i32,
+                    target_uri: body.params.uri.to_string(),
+                    amount: 0,
+                    readed: None,
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
         }
     } else {
         return Err(AppError::ValidateFailed(

@@ -75,7 +75,9 @@ pub(crate) mod tip;
         tip::TipsQuery,
         tip::DetailQuery,
         SignedBody<donate::DonateParams>,
+        notify::NotifyQuery,
         notify::NotifyReadQuery,
+        crate::lexicon::notify::NotifyType,
     ))
 )]
 pub struct ApiDoc;

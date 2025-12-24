@@ -105,3 +105,16 @@ pub async fn payment_did_stats(url: &str, did: &str) -> Result<Value> {
         .await
         .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
 }
+
+pub async fn payment(url: &str, id: i64) -> Result<Value> {
+    reqwest::Client::new()
+        .get(format!("{url}/api/payment/id/{id}"))
+        .header("Content-Type", "application/json; charset=utf-8")
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| eyre!("call micro_pay failed: {e}"))?
+        .json::<Value>()
+        .await
+        .map_err(|e| eyre!("decode micro_pay response failed: {e}"))
+}
