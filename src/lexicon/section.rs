@@ -93,12 +93,13 @@ impl Section {
         Ok(map)
     }
 
-    pub async fn select_by_uri(db: &Pool<Postgres>, id: i32) -> Result<SectionRowMini> {
+    pub async fn select_by_id(db: &Pool<Postgres>, id: i32) -> Result<SectionRowMini> {
         let (sql, values) = sea_query::Query::select()
             .columns([
                 Section::Id,
                 Section::Name,
                 Section::Owner,
+                Section::Permission,
                 Section::Administrators,
             ])
             .from(Section::Table)

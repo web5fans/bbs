@@ -99,7 +99,7 @@ pub(crate) async fn update_tag(
         _ => return Err(eyre!("nsid is not allowed!").into()),
     };
 
-    let section_row = Section::select_by_uri(&state.db, section_id)
+    let section_row = Section::select_by_id(&state.db, section_id)
         .await
         .map_err(|e| {
             debug!("exec sql failed: {e}");

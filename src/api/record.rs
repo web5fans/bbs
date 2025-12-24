@@ -7,8 +7,6 @@ use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
     ok, ok_simple,
 };
-use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
-use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use utoipa::ToSchema;
@@ -64,19 +62,7 @@ pub(crate) async fn create(
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let (sql, values) = sea_query::Query::select()
-            .columns([
-                Section::Id,
-                Section::Name,
-                Section::Owner,
-                Section::Administrators,
-                Section::Permission,
-            ])
-            .from(Section::Table)
-            .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
-            .build_sqlx(PostgresQueryBuilder);
-        let section: SectionRowMini = sqlx::query_as_with(&sql, values.clone())
-            .fetch_one(&state.db)
+        let section: SectionRowMini = Section::select_by_id(&state.db, section_id)
             .await
             .map_err(|e| eyre!("error in section_id: {e}"))?;
 
@@ -161,19 +147,7 @@ pub(crate) async fn update(
                 .as_str()
                 .and_then(|s| s.parse::<i32>().ok())
                 .ok_or_eyre("error in section_id")?;
-            let (sql, values) = sea_query::Query::select()
-                .columns([
-                    Section::Id,
-                    Section::Name,
-                    Section::Owner,
-                    Section::Administrators,
-                    Section::Permission,
-                ])
-                .from(Section::Table)
-                .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
-                .build_sqlx(PostgresQueryBuilder);
-            let section: SectionRowMini = sqlx::query_as_with(&sql, values.clone())
-                .fetch_one(&state.db)
+            let section: SectionRowMini = Section::select_by_id(&state.db, section_id)
                 .await
                 .map_err(|e| eyre!("error in section_id: {e}"))?;
 
