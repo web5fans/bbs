@@ -169,7 +169,6 @@ impl Reply {
         db.execute(query_with(&sql, values)).await.ok();
 
         // notify
-
         let (receiver, _nsid, _rkey) = resolve_uri(comment)?;
         Notify::insert(
             db,
@@ -179,7 +178,7 @@ impl Reply {
                 sender: repo.to_string(),
                 receiver: receiver.to_string(),
                 n_type: NotifyType::NewReply as i32,
-                target_uri: comment.to_string(),
+                target_uri: uri.to_string(),
                 amount: 0,
                 readed: None,
                 created: chrono::Local::now(),

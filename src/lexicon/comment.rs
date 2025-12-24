@@ -155,7 +155,7 @@ impl Comment {
                 sender: repo.to_string(),
                 receiver: receiver.to_string(),
                 n_type: NotifyType::NewComment as i32,
-                target_uri: post.to_string(),
+                target_uri: uri.to_string(),
                 amount: 0,
                 readed: None,
                 created: chrono::Local::now(),

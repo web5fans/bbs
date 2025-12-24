@@ -243,6 +243,7 @@ pub(crate) async fn transfer(
     let result = micro_pay::payment_transfer(&state.pay_url, &body).await?;
     if let Some(id) = result.get("paymentId").and_then(|id| id.as_i64()) {
         let payment = micro_pay::payment(&state.pay_url, id).await?;
+        debug!("payment: {payment}");
         if let Some(info) = payment.pointer("/payment/info").and_then(|i| i.as_str())
             && let Some(sender) = payment
                 .pointer("/payment/senderDid")

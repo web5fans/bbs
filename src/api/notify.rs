@@ -88,7 +88,19 @@ pub(crate) async fn list(
         });
     }
 
-    Ok(ok(views))
+    let cursor = views.last().map(|r| r.created.timestamp());
+    let result = if let Some(cursor) = cursor {
+        json!({
+            "cursor": cursor.to_string(),
+            "notifies": views
+        })
+    } else {
+        json!({
+            "notifies": views
+        })
+    };
+
+    Ok(ok(result))
 }
 
 async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
@@ -178,7 +190,7 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                     (Comment::Table, Comment::Created),
                 ])
                 .from(Comment::Table)
-                .and_where(Expr::col(Comment::Uri).eq(reply.1))
+                .and_where(Expr::col(Comment::Uri).eq(&reply.1))
                 .build_sqlx(PostgresQueryBuilder);
             let comment: (String, String, DateTime<Local>) =
                 query_as_with(&sql, values.clone()).fetch_one(db).await?;
@@ -206,6 +218,7 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                 "text": reply.0,
                 "index": reply_count.0 + 1,
                 "comment": {
+                    "uri": reply.1,
                     "text": comment.0,
                     "index": comment_count.0 + 1,
                 },
