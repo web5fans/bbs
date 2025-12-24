@@ -164,7 +164,7 @@ impl Reply {
         let (sql, values) = sea_query::Query::update()
             .table(Post::Table)
             .values([(Post::Updated, (chrono::Local::now()).into())])
-            .and_where(Expr::col(Post::Uri).eq(comment))
+            .and_where(Expr::col(Post::Uri).eq(post))
             .build_sqlx(PostgresQueryBuilder);
         db.execute(query_with(&sql, values)).await.ok();
 
@@ -186,6 +186,24 @@ impl Reply {
         )
         .await
         .ok();
+        if !to.is_empty() {
+            Notify::insert(
+                db,
+                &NotifyRow {
+                    id: 0,
+                    title: "New Reply".to_string(),
+                    sender: repo.to_string(),
+                    receiver: to.to_string(),
+                    n_type: NotifyType::NewReply as i32,
+                    target_uri: uri.to_string(),
+                    amount: 0,
+                    readed: None,
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
 
         Ok(())
     }
