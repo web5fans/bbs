@@ -109,14 +109,19 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
     let value = match nsid {
         NSID_POST => {
             let (sql, values) = sea_query::Query::select()
-                .columns([(Post::Table, Post::Title)])
+                .columns([
+                    (Post::Table, Post::Title),
+                    (Post::Table, Post::ReasonsForDisabled),
+                ])
                 .from(Post::Table)
                 .and_where(Expr::col(Post::Uri).eq(uri))
                 .build_sqlx(PostgresQueryBuilder);
-            let row: (String,) = query_as_with(&sql, values.clone()).fetch_one(db).await?;
+            let row: (String, Option<String>) =
+                query_as_with(&sql, values.clone()).fetch_one(db).await?;
             json!({
                 "nsid": nsid,
                 "title": row.0,
+                "reasons_for_disabled": row.1,
             })
         }
         NSID_COMMENT => {
@@ -125,11 +130,12 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                     (Comment::Table, Comment::Text),
                     (Comment::Table, Comment::Post),
                     (Comment::Table, Comment::Created),
+                    (Comment::Table, Comment::ReasonsForDisabled),
                 ])
                 .from(Comment::Table)
                 .and_where(Expr::col(Comment::Uri).eq(uri))
                 .build_sqlx(PostgresQueryBuilder);
-            let row: (String, String, DateTime<Local>) =
+            let row: (String, String, DateTime<Local>, Option<String>) =
                 query_as_with(&sql, values.clone()).fetch_one(db).await?;
 
             let (sql, values) = sea_query::Query::select()
@@ -154,6 +160,7 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                 "nsid": nsid,
                 "text": row.0,
                 "index": count.0 + 1,
+                "reasons_for_disabled": row.3,
                 "post": {
                     "title": post.0,
                     "uri": row.1
@@ -166,11 +173,12 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                     (Reply::Table, Reply::Text),
                     (Reply::Table, Reply::Comment),
                     (Reply::Table, Reply::Created),
+                    (Reply::Table, Reply::ReasonsForDisabled),
                 ])
                 .from(Reply::Table)
                 .and_where(Expr::col(Reply::Uri).eq(uri))
                 .build_sqlx(PostgresQueryBuilder);
-            let reply: (String, String, DateTime<Local>) =
+            let reply: (String, String, DateTime<Local>, Option<String>) =
                 query_as_with(&sql, values.clone()).fetch_one(db).await?;
 
             let (sql, values) = sea_query::Query::select()
@@ -217,6 +225,7 @@ async fn get_target(db: &Pool<Postgres>, uri: &str) -> Result<Value> {
                 "nsid": nsid,
                 "text": reply.0,
                 "index": reply_count.0 + 1,
+                "reasons_for_disabled": reply.3,
                 "comment": {
                     "uri": reply.1,
                     "text": comment.0,
