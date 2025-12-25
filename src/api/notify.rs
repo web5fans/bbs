@@ -34,7 +34,7 @@ use crate::{
 #[serde(default)]
 pub struct NotifyQuery {
     pub repo: String,
-    pub n_type: Option<String>,
+    pub n_type: Vec<String>,
     pub cursor: Option<String>,
     pub limit: u64,
 }
@@ -46,12 +46,18 @@ pub(crate) async fn list(
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = Notify::build_select()
         .and_where(Expr::col(Notify::Receiver).eq(query.repo))
-        .and_where_option(
-            query
+        .and_where_option({
+            let ntype = query
                 .n_type
-                .and_then(|t| t.parse::<i64>().ok())
-                .map(|t| Expr::col((Notify::Table, Notify::NType)).eq(t)),
-        )
+                .iter()
+                .filter_map(|t| t.parse::<i32>().ok())
+                .collect::<Vec<i32>>();
+            if query.n_type.is_empty() {
+                None
+            } else {
+                Some(Expr::col((Notify::Table, Notify::NType)).is_in(ntype))
+            }
+        })
         .and_where_option(
             query
                 .cursor

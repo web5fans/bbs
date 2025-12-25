@@ -5,6 +5,8 @@ edition = "2024"
 authors = ["JLer <jlerxky@live.com>"]
 
 [dependencies]
+atrium-api = "0.25"
+atrium-repo = "0.1"
 axum-extra = { version = "0.12", features = ["typed-header"] }
 base32 = "0.5"
 bs58 = "0.5"
@@ -19,7 +21,9 @@ common_x = { version = "0.8", default-features = false, features = [
     "log",
     "restful",
 ] }
+futures = "0.3"
 hex = "0.4"
+ipld-core = { version = "0.4", default-features = false, features = ["std"] }
 k256 = "0.13"
 reqwest = { version = "0.12", features = ["json"] }
 sea-query = { version = "1.0.0-rc", default-features = false, features = [
@@ -44,7 +48,9 @@ serde_json = "1.0"
 serde_ipld_dagcbor = { version = "0.6", features = ["codec"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
 tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.28", features = ["native-tls"] }
 tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }
+trait-variant = "0.1"
 tracing = "0.1"
 utoipa = { version = "5.4", features = ["axum_extras"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }

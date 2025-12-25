@@ -6,6 +6,7 @@ mod error;
 mod indexer;
 mod lexicon;
 mod micro_pay;
+mod relayer;
 
 #[macro_use]
 extern crate tracing as logger;
@@ -33,6 +34,7 @@ use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
 use crate::lexicon::whitelist::Whitelist;
+use crate::relayer::subscription::RepoSubscription;
 
 #[derive(Clone)]
 struct AppView {
@@ -85,6 +87,23 @@ async fn main() -> Result<()> {
         pay_url: config.pay_url.clone(),
         ckb_net: config.ckb_net,
     };
+
+    // reconnect
+    let bbs_ = bbs.clone();
+    let relayer = config.relayer.clone();
+    tokio::spawn(async move {
+        loop {
+            match RepoSubscription::new(&relayer).await {
+                Ok(mut sub) => match sub.run(bbs_.clone()).await {
+                    Ok(_) => info!("Subscription ended successfully."),
+                    Err(e) => error!("{e}"),
+                },
+                Err(e) => error!("{e}"),
+            }
+            info!("Reconnecting in 1 seconds...");
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    });
 
     let router = if args.apidoc {
         Router::new().merge(Scalar::with_url("/apidoc", ApiDoc::openapi()))
