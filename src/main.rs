@@ -119,6 +119,7 @@ async fn main() -> Result<()> {
         .route("/api/donate/transfer", post(api::donate::transfer))
         .route("/api/notify/list", post(api::notify::list))
         .route("/api/notify/read", post(api::notify::read))
+        .route("/api/notify/unread_num", get(api::notify::unread_num))
         .layer((TimeoutLayer::with_status_code(
             reqwest::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(10),

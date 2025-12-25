@@ -61,6 +61,7 @@ pub(crate) mod tip;
         donate::transfer,
         notify::list,
         notify::read,
+        notify::unread_num,
     ),
     components(schemas(
         SignedBody<admin::UpdateTagParams>,

@@ -1,7 +1,11 @@
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::eyre};
 use common_x::restful::{
-    axum::{Json, extract::State, response::IntoResponse},
+    axum::{
+        Json,
+        extract::{Query, State},
+        response::IntoResponse,
+    },
     ok, ok_simple,
 };
 use sea_query::{BinOper, Expr, ExprTrait, Func, Order, PostgresQueryBuilder};
@@ -9,7 +13,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::{Executor, Pool, Postgres, query_as_with, query_with};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 use crate::{
@@ -42,7 +46,6 @@ pub(crate) async fn list(
 ) -> Result<impl IntoResponse, AppError> {
     let (sql, values) = Notify::build_select()
         .and_where(Expr::col(Notify::Receiver).eq(query.repo))
-        .and_where(Expr::col(Notify::Readed).is_null())
         .and_where_option(
             query
                 .n_type
@@ -264,4 +267,29 @@ pub(crate) async fn read(
 
     state.db.execute(query_with(&sql, values)).await?;
     Ok(ok_simple())
+}
+
+#[derive(Debug, Default, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct NotifyUnreadQuery {
+    pub repo: String,
+}
+
+#[utoipa::path(get, path = "/api/notify/unread_num", params(NotifyUnreadQuery))]
+pub(crate) async fn unread_num(
+    State(state): State<AppView>,
+    Query(query): Query<NotifyUnreadQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Notify::Table, Notify::Id)).count_distinct())
+        .from(Notify::Table)
+        .and_where(Expr::col(Notify::Receiver).eq(query.repo))
+        .and_where(Expr::col(Notify::Readed).is_null())
+        .build_sqlx(PostgresQueryBuilder);
+    let rows: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or_default();
+
+    Ok(ok(rows.0))
 }
