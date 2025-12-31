@@ -26,6 +26,7 @@ use utoipa_scalar::{Scalar, Servable};
 
 use crate::api::ApiDoc;
 use crate::config::AppConfig;
+use crate::lexicon::administrator::Administrator;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::notify::Notify;
@@ -77,6 +78,7 @@ async fn main() -> Result<()> {
     Like::init(&db).await?;
     Whitelist::init(&db).await?;
     Notify::init(&db).await?;
+    Administrator::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -112,6 +114,11 @@ async fn main() -> Result<()> {
     };
     let router = router
         .route("/api/admin/update_tag", post(api::admin::update_tag))
+        .route("/api/admin/update_owner", post(api::admin::update_owner))
+        .route(
+            "/api/admin/update_section",
+            post(api::admin::update_section),
+        )
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
         .route("/api/record/delete", post(api::record::delete))

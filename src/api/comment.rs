@@ -17,6 +17,7 @@ use crate::{
     atproto::NSID_COMMENT,
     error::AppError,
     lexicon::{
+        administrator::Administrator,
         comment::{Comment, CommentRow, CommentView},
         section::Section,
     },
@@ -67,6 +68,7 @@ pub(crate) async fn list(
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
     let sections = Section::all(&state.db).await?;
+    let admins = Administrator::all_did(&state.db).await;
     let mut views = vec![];
     for row in rows {
         let replies = crate::api::reply::list_reply(
@@ -85,13 +87,10 @@ pub(crate) async fn list(
         let author = build_author(&state, &row.repo).await;
         let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
-                || sections.get(&row.section_id).is_some_and(|section| {
-                    section
-                        .administrators
-                        .as_ref()
-                        .is_some_and(|admins| admins.contains(viewer))
-                        || (section.owner.as_ref() == Some(viewer))
-                })
+                || sections
+                    .get(&row.section_id)
+                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                || admins.contains(viewer)
         } else {
             false
         };

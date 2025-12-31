@@ -60,14 +60,7 @@ pub(crate) async fn list(
             json!({})
         };
 
-        let mut administrators = vec![];
-
-        if let Some(admins) = &row.administrators {
-            for admin in admins {
-                administrators.push(build_author(&state, admin).await);
-            }
-        }
-        views.push(SectionView::build(row, owner_author, administrators));
+        views.push(SectionView::build(row, owner_author));
     }
 
     Ok(ok(views))
@@ -104,13 +97,5 @@ pub(crate) async fn detail(
         json!({})
     };
 
-    let mut administrators = vec![];
-
-    if let Some(admins) = &row.administrators {
-        for admin in admins {
-            administrators.push(build_author(&state, admin).await);
-        }
-    }
-
-    Ok(ok(SectionView::build(row, owner_author, administrators)))
+    Ok(ok(SectionView::build(row, owner_author)))
 }

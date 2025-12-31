@@ -17,6 +17,7 @@ use crate::{
     atproto::NSID_REPLY,
     error::AppError,
     lexicon::{
+        administrator::Administrator,
         reply::{Reply, ReplyRow, ReplyView},
         section::Section,
     },
@@ -105,17 +106,15 @@ pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Val
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
     let sections = Section::all(&state.db).await?;
+    let admins = Administrator::all_did(&state.db).await;
     let mut views = vec![];
     for row in rows {
         let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
-                || sections.get(&row.section_id).is_some_and(|section| {
-                    section
-                        .administrators
-                        .as_ref()
-                        .is_some_and(|admins| admins.contains(viewer))
-                        || (section.owner.as_ref() == Some(viewer))
-                })
+                || sections
+                    .get(&row.section_id)
+                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                || admins.contains(viewer)
         } else {
             false
         };

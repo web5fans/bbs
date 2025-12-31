@@ -1,5 +1,6 @@
 use color_eyre::{Result, eyre::OptionExt};
 
+pub(crate) mod administrator;
 pub(crate) mod comment;
 pub(crate) mod like;
 pub(crate) mod notify;

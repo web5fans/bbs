@@ -16,11 +16,12 @@ use crate::{
     atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_REPLY, direct_writes},
     error::AppError,
     lexicon::{
+        administrator::Administrator,
         comment::Comment,
         like::Like,
         post::Post,
         reply::Reply,
-        section::{Section, SectionRowMini},
+        section::{Section, SectionRow},
         whitelist::Whitelist,
     },
 };
@@ -62,18 +63,17 @@ pub(crate) async fn create(
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_eyre("error in section_id")?;
-        let section: SectionRowMini = Section::select_by_id(&state.db, section_id)
+        let section: SectionRow = Section::select_by_id(&state.db, section_id)
             .await
             .map_err(|e| eyre!("error in section_id: {e}"))?;
 
-        if section.permission > 0 && section.owner != Some(new_record.repo.clone()) {
-            if let Some(administrators) = section.administrators {
-                if !administrators.contains(&new_record.repo) {
-                    return Err(eyre!("Operation is not allowed!").into());
-                }
-            } else {
-                return Err(eyre!("Operation is not allowed!").into());
-            }
+        let admins = Administrator::all_did(&state.db).await;
+
+        if section.permission > 0
+            && section.owner != Some(new_record.repo.clone())
+            && !admins.contains(&new_record.repo)
+        {
+            return Err(eyre!("Operation is not allowed!").into());
         }
     }
 
@@ -147,18 +147,17 @@ pub(crate) async fn update(
                 .as_str()
                 .and_then(|s| s.parse::<i32>().ok())
                 .ok_or_eyre("error in section_id")?;
-            let section: SectionRowMini = Section::select_by_id(&state.db, section_id)
+            let section: SectionRow = Section::select_by_id(&state.db, section_id)
                 .await
                 .map_err(|e| eyre!("error in section_id: {e}"))?;
 
-            if section.permission > 0 && section.owner != Some(new_record.repo.clone()) {
-                if let Some(administrators) = section.administrators {
-                    if !administrators.contains(&new_record.repo) {
-                        return Err(eyre!("Operation is not allowed!").into());
-                    }
-                } else {
-                    return Err(eyre!("Operation is not allowed!").into());
-                }
+            let admins = Administrator::all_did(&state.db).await;
+
+            if section.permission > 0
+                && section.owner != Some(new_record.repo.clone())
+                && !admins.contains(&new_record.repo)
+            {
+                return Err(eyre!("Operation is not allowed!").into());
             }
         }
         _ => {}

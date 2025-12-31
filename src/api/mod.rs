@@ -35,6 +35,8 @@ pub(crate) mod tip;
     modifiers(&SecurityAddon),
     paths(
         admin::update_tag,
+        admin::update_owner,
+        admin::update_section,
         record::create,
         record::update,
         record::delete,
@@ -65,6 +67,8 @@ pub(crate) mod tip;
     ),
     components(schemas(
         SignedBody<admin::UpdateTagParams>,
+        SignedBody<admin::UpdateOwnerParams>,
+        SignedBody<admin::UpdateSectionParams>,
         record::NewRecord,
         post::PostQuery,
         post::TopQuery,

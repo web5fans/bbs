@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Local};
 use color_eyre::{Result, eyre::eyre};
-use sea_query::{ColumnDef, ColumnType, Expr, ExprTrait, Iden, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, ExprTrait, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
@@ -15,9 +15,11 @@ pub enum Section {
     Permission,
     Name,
     Description,
+    Image,
     Owner,
-    Administrators,
+    OwnerSetTime,
     CkbAddr,
+    IsDisabled,
     Updated,
     Created,
 }
@@ -42,13 +44,20 @@ impl Section {
             )
             .col(ColumnDef::new(Self::Name).string().not_null())
             .col(ColumnDef::new(Self::Description).string())
+            .col(ColumnDef::new(Self::Image).string())
             .col(ColumnDef::new(Self::Owner).string())
-            .col(ColumnDef::new(Self::Administrators).array(ColumnType::String(Default::default())))
             .col(
                 ColumnDef::new(Self::CkbAddr)
                     .string()
                     .not_null()
                     .default("".to_string()),
+            )
+            .col(ColumnDef::new(Self::OwnerSetTime).timestamp_with_time_zone())
+            .col(
+                ColumnDef::new(Self::IsDisabled)
+                    .boolean()
+                    .not_null()
+                    .default(false),
             )
             .col(
                 ColumnDef::new(Self::Updated)
@@ -68,18 +77,25 @@ impl Section {
         Ok(())
     }
 
-    pub async fn all(db: &Pool<Postgres>) -> Result<HashMap<i32, SectionRowMini>> {
+    pub async fn all(db: &Pool<Postgres>) -> Result<HashMap<i32, SectionRow>> {
         let (sql, values) = sea_query::Query::select()
             .columns([
                 Section::Id,
-                Section::Name,
-                Section::Owner,
-                Section::Administrators,
                 Section::Permission,
+                Section::Name,
+                Section::Description,
+                Section::Image,
+                Section::Owner,
+                Section::OwnerSetTime,
+                Section::CkbAddr,
+                Section::IsDisabled,
+                Section::Updated,
+                Section::Created,
             ])
+            .and_where(Expr::col(Section::IsDisabled).eq(false))
             .from(Section::Table)
             .build_sqlx(PostgresQueryBuilder);
-        let list: Vec<SectionRowMini> = query_as_with(&sql, values.clone())
+        let list: Vec<SectionRow> = query_as_with(&sql, values.clone())
             .fetch_all(db)
             .await
             .map_err(|e| eyre!("exec sql failed: {e}"))?;
@@ -93,14 +109,20 @@ impl Section {
         Ok(map)
     }
 
-    pub async fn select_by_id(db: &Pool<Postgres>, id: i32) -> Result<SectionRowMini> {
+    pub async fn select_by_id(db: &Pool<Postgres>, id: i32) -> Result<SectionRow> {
         let (sql, values) = sea_query::Query::select()
             .columns([
                 Section::Id,
-                Section::Name,
-                Section::Owner,
                 Section::Permission,
-                Section::Administrators,
+                Section::Name,
+                Section::Description,
+                Section::Image,
+                Section::Owner,
+                Section::OwnerSetTime,
+                Section::CkbAddr,
+                Section::IsDisabled,
+                Section::Updated,
+                Section::Created,
             ])
             .from(Section::Table)
             .and_where(Expr::col(Section::Id).eq(id))
@@ -118,9 +140,13 @@ impl Section {
             Section::Permission,
             Section::Name,
             Section::Description,
+            Section::Image,
             Section::Owner,
-            Section::Administrators,
+            Section::OwnerSetTime,
             Section::CkbAddr,
+            Section::IsDisabled,
+            Section::Updated,
+            Section::Created,
         ])
         .expr(Expr::cust("(select sum(\"post\".\"visited_count\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\") as visited_count"))
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\") as post_count"))
@@ -128,30 +154,24 @@ impl Section {
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_top\") as top_count"))
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"is_disabled\" is false and \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
+        .and_where(Expr::col(Section::IsDisabled).eq(false))
         .from(Section::Table).take()
     }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
-#[allow(dead_code)]
 pub struct SectionRow {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
+    pub image: Option<String>,
     pub permission: i32,
     pub owner: Option<String>,
-    pub administrators: Option<Vec<String>>,
+    pub owner_set_time: Option<DateTime<Local>>,
+    pub ckb_addr: String,
+    pub is_disabled: bool,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
-}
-
-#[derive(sqlx::FromRow, Debug, Serialize)]
-pub struct SectionRowMini {
-    pub id: i32,
-    pub name: String,
-    pub owner: Option<String>,
-    pub administrators: Option<Vec<String>>,
-    pub permission: i32,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -160,9 +180,13 @@ pub struct SectionRowSample {
     pub name: String,
     pub permission: i32,
     pub description: Option<String>,
+    pub image: Option<String>,
     pub owner: Option<String>,
-    pub administrators: Option<Vec<String>>,
+    pub owner_set_time: Option<DateTime<Local>>,
     pub ckb_addr: String,
+    pub is_disabled: bool,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
     pub visited_count: Option<i64>,
     pub post_count: Option<i64>,
     pub announcement_count: Option<i64>,
@@ -176,9 +200,14 @@ pub struct SectionView {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub image: Option<String>,
     pub owner: Value,
-    pub administrators: Value,
+    pub owner_set_time: Option<DateTime<Local>>,
     pub ckb_addr: String,
+    pub permission: String,
+    pub is_disabled: bool,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
     pub visited_count: String,
     pub post_count: String,
     pub announcement_count: String,
@@ -188,14 +217,19 @@ pub struct SectionView {
 }
 
 impl SectionView {
-    pub fn build(row: SectionRowSample, owner: Value, administrators: Vec<Value>) -> Self {
+    pub fn build(row: SectionRowSample, owner: Value) -> Self {
         Self {
             id: row.id.to_string(),
             name: row.name,
             description: row.description,
+            permission: row.permission.to_string(),
             owner,
-            administrators: Value::Array(administrators),
+            owner_set_time: row.owner_set_time,
+            image: row.image,
             ckb_addr: row.ckb_addr,
+            is_disabled: row.is_disabled,
+            updated: row.updated,
+            created: row.created,
             visited_count: row.visited_count.unwrap_or_default().to_string(),
             post_count: row.post_count.unwrap_or_default().to_string(),
             announcement_count: row.announcement_count.unwrap_or_default().to_string(),

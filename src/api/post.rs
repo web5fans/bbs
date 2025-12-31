@@ -23,6 +23,7 @@ use crate::{
     atproto::NSID_POST,
     error::AppError,
     lexicon::{
+        administrator::Administrator,
         comment::{Comment, CommentRow},
         post::{Post, PostDraftRow, PostDraftView, PostRepliedView, PostRow, PostView},
         section::Section,
@@ -105,19 +106,17 @@ pub(crate) async fn list(
 
     let sections = Section::all(&state.db).await?;
 
+    let admins = Administrator::all_did(&state.db).await;
     let mut views = vec![];
     for row in rows {
         let author = build_author(&state, &row.repo).await;
 
         let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
-                || sections.get(&row.section_id).is_some_and(|section| {
-                    section
-                        .administrators
-                        .as_ref()
-                        .is_some_and(|admins| admins.contains(viewer))
-                        || (section.owner.as_ref() == Some(viewer))
-                })
+                || sections
+                    .get(&row.section_id)
+                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                || admins.contains(viewer)
         } else {
             false
         };
@@ -161,32 +160,9 @@ pub(crate) async fn top(
 ) -> Result<impl IntoResponse, AppError> {
     let section_id: i32 = query.section_id.parse()?;
 
-    let (sql, values) = sea_query::Query::select()
-        .columns([Section::Id, Section::Administrators, Section::Owner])
-        .from(Section::Table)
-        .and_where(Expr::col((Section::Table, Section::Id)).eq(section_id))
-        .build_sqlx(PostgresQueryBuilder);
-    let section: (i32, Option<Vec<String>>, String) = query_as_with(&sql, values.clone())
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
-
-    let administrators = if let Some(mut administrators) = section.1 {
-        administrators.push(section.2);
-        administrators
-    } else {
-        vec![section.2]
-    };
-
-    if administrators.is_empty() {
-        return Ok(ok(json!({
-            "posts": []
-        })));
-    };
-
     let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::SectionId)).eq(section_id))
-        .and_where(Expr::col((Post::Table, Post::Repo)).is_in(administrators))
+        .and_where(Expr::col((Post::Table, Post::IsAnnouncement)).eq(true))
         .order_by(Post::Created, Order::Desc)
         .limit(10)
         .build_sqlx(PostgresQueryBuilder);
@@ -203,13 +179,9 @@ pub(crate) async fn top(
         let author = build_author(&state, &row.repo).await;
         let display = if let Some(viewer) = &query.viewer {
             &row.repo == viewer
-                || sections.get(&row.section_id).is_some_and(|section| {
-                    section
-                        .administrators
-                        .as_ref()
-                        .is_some_and(|admins| admins.contains(viewer))
-                        || (section.owner.as_ref() == Some(viewer))
-                })
+                || sections
+                    .get(&row.section_id)
+                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
         } else {
             false
         };
@@ -269,16 +241,14 @@ pub(crate) async fn detail(
     state.db.execute(query_with(&sql, values)).await?;
 
     let sections = Section::all(&state.db).await?;
+    let admins = Administrator::all_did(&state.db).await;
     let author = build_author(&state, &row.repo).await;
     let display = if let Some(viewer) = &viewer {
         &row.repo == viewer
-            || sections.get(&row.section_id).is_some_and(|section| {
-                section
-                    .administrators
-                    .as_ref()
-                    .is_some_and(|admins| admins.contains(viewer))
-                    || (section.owner.as_ref() == Some(viewer))
-            })
+            || sections
+                .get(&row.section_id)
+                .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+            || admins.contains(viewer)
     } else {
         false
     };
@@ -341,31 +311,26 @@ pub(crate) async fn commented(
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
     let sections = Section::all(&state.db).await?;
+    let admins = Administrator::all_did(&state.db).await;
     let mut views = vec![];
     for row in rows {
         if let Some(comment) = roots.get(&row.uri).cloned() {
             let post_author = build_author(&state, &row.repo).await;
             let post_display = if let Some(viewer) = &query.viewer {
                 &row.repo == viewer
-                    || sections.get(&row.section_id).is_some_and(|section| {
-                        section
-                            .administrators
-                            .as_ref()
-                            .is_some_and(|admins| admins.contains(viewer))
-                            || (section.owner.as_ref() == Some(viewer))
-                    })
+                    || sections
+                        .get(&row.section_id)
+                        .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                    || admins.contains(viewer)
             } else {
                 false
             };
             let comment_display = if let Some(viewer) = &query.viewer {
                 &comment.repo == viewer
-                    || sections.get(&comment.section_id).is_some_and(|section| {
-                        section
-                            .administrators
-                            .as_ref()
-                            .is_some_and(|admins| admins.contains(viewer))
-                            || (section.owner.as_ref() == Some(viewer))
-                    })
+                    || sections
+                        .get(&row.section_id)
+                        .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                    || admins.contains(viewer)
             } else {
                 false
             };
