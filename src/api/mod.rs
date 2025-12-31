@@ -29,6 +29,7 @@ pub(crate) mod reply;
 pub(crate) mod repo;
 pub(crate) mod section;
 pub(crate) mod tip;
+pub(crate) mod whitelist;
 
 #[derive(OpenApi, Debug, Clone, Copy)]
 #[openapi(
@@ -37,6 +38,8 @@ pub(crate) mod tip;
         admin::update_tag,
         admin::update_owner,
         admin::update_section,
+        admin::add_whitelist,
+        admin::delete_whitelist,
         record::create,
         record::update,
         record::delete,
@@ -64,11 +67,13 @@ pub(crate) mod tip;
         notify::list,
         notify::read,
         notify::unread_num,
+        whitelist::list,
     ),
     components(schemas(
         SignedBody<admin::UpdateTagParams>,
         SignedBody<admin::UpdateOwnerParams>,
         SignedBody<admin::UpdateSectionParams>,
+        SignedBody<admin::WhitelistParams>,
         record::NewRecord,
         post::PostQuery,
         post::TopQuery,

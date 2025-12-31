@@ -119,6 +119,11 @@ async fn main() -> Result<()> {
             "/api/admin/update_section",
             post(api::admin::update_section),
         )
+        .route("/api/admin/add_whitelist", post(api::admin::add_whitelist))
+        .route(
+            "/api/admin/delete_whitelist",
+            post(api::admin::delete_whitelist),
+        )
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
         .route("/api/record/delete", post(api::record::delete))
@@ -146,6 +151,7 @@ async fn main() -> Result<()> {
         .route("/api/notify/list", post(api::notify::list))
         .route("/api/notify/read", post(api::notify::read))
         .route("/api/notify/unread_num", get(api::notify::unread_num))
+        .route("/api/whitelist", get(api::whitelist::list))
         .layer((TimeoutLayer::with_status_code(
             reqwest::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(10),

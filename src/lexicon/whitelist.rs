@@ -1,7 +1,7 @@
 use color_eyre::{Result, eyre::eyre};
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
-use sqlx::{Executor, Pool, Postgres, query, query_as_with};
+use sqlx::{Executor, Pool, Postgres, query, query_as_with, query_with};
 
 #[derive(Iden)]
 pub enum Whitelist {
@@ -48,5 +48,26 @@ impl Whitelist {
             .await
             .ok()
             .is_some()
+    }
+
+    pub async fn insert(db: &Pool<Postgres>, did: &str) -> Result<()> {
+        let (sql, values) = sea_query::Query::insert()
+            .into_table(Self::Table)
+            .columns([Self::Did])
+            .values([did.into()])?
+            .returning_col(Self::Did)
+            .build_sqlx(PostgresQueryBuilder);
+
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
+    }
+
+    pub async fn delete(db: &Pool<Postgres>, did: &str) -> Result<()> {
+        let (sql, values) = sea_query::Query::delete()
+            .from_table(Whitelist::Table)
+            .and_where(Expr::col(Whitelist::Did).eq(did))
+            .build_sqlx(PostgresQueryBuilder);
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
     }
 }

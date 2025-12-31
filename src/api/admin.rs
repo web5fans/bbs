@@ -22,6 +22,7 @@ use crate::{
         post::Post,
         reply::Reply,
         section::Section,
+        whitelist::Whitelist,
     },
 };
 
@@ -310,6 +311,67 @@ pub(crate) async fn update_section(
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+    }
+
+    Ok(ok_simple())
+}
+
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct WhitelistParams {
+    pub whitelist: Vec<String>,
+    pub timestamp: i64,
+}
+
+impl SignedParam for WhitelistParams {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/add_whitelist")]
+pub(crate) async fn add_whitelist(
+    State(state): State<AppView>,
+    Json(body): Json<SignedBody<WhitelistParams>>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let admins = Administrator::all_did(&state.db).await;
+    if !admins.contains(&body.did) {
+        return Err(AppError::ValidateFailed(
+            "only administrator can update section owner".to_string(),
+        ));
+    }
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    for did in body.params.whitelist {
+        Whitelist::insert(&state.db, &did).await.ok();
+    }
+
+    Ok(ok_simple())
+}
+
+#[utoipa::path(post, path = "/api/admin/delete_whitelist")]
+pub(crate) async fn delete_whitelist(
+    State(state): State<AppView>,
+    Json(body): Json<SignedBody<WhitelistParams>>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let admins = Administrator::all_did(&state.db).await;
+    if !admins.contains(&body.did) {
+        return Err(AppError::ValidateFailed(
+            "only administrator can update section owner".to_string(),
+        ));
+    }
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    for did in body.params.whitelist {
+        Whitelist::delete(&state.db, &did).await.ok();
     }
 
     Ok(ok_simple())
