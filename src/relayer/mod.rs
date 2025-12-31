@@ -1,6 +1,6 @@
 use atrium_api::com::atproto::sync::subscribe_repos::Commit;
 use atrium_repo::{Repository, blockstore::CarStore};
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::Result;
 use serde_json::Value;
 use sqlx::{Executor, query};
 
@@ -43,7 +43,10 @@ impl CommitHandler for AppView {
                             let cid =
                                 format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
                             info!("{} post: {:?}", op.action, &record);
-                            Post::insert(&self.db, repo_str, &record, &uri, &cid).await?;
+                            Post::insert(&self.db, repo_str, &record, &uri, &cid)
+                                .await
+                                .map_err(|e| error!("Post::insert failed: {e}"))
+                                .ok();
                         }
                         "delete" => {
                             posts_to_delete.push(uri.clone());
@@ -54,10 +57,7 @@ impl CommitHandler for AppView {
                     _ => continue,
                 }
             } else {
-                return Err(eyre!(
-                    "FAILED: could not find item with operation {}",
-                    op.path
-                ));
+                error!("FAILED: could not find item with operation {}", op.path);
             }
         }
 
@@ -71,7 +71,9 @@ impl CommitHandler for AppView {
                         .collect::<Vec<_>>()
                         .join(", ")
                 )))
-                .await?;
+                .await
+                .map_err(|e| error!("sql execute failed: {e}"))
+                .ok();
         }
 
         Ok(())
