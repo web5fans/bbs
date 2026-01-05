@@ -154,7 +154,6 @@ impl Section {
         .expr(Expr::cust("(select count(\"post\".\"uri\") from \"post\" where \"post\".\"is_disabled\" is false and \"post\".\"section_id\" = \"section\".\"id\" and \"post\".\"is_top\") as top_count"))
         .expr(Expr::cust("(select count(\"comment\".\"uri\") from \"comment\" where \"comment\".\"is_disabled\" is false and \"comment\".\"section_id\" = \"section\".\"id\") as comment_count"))
         .expr(Expr::cust("(select count(\"like\".\"uri\") from \"like\" where \"like\".\"section_id\" = \"section\".\"id\") as like_count"))
-        .and_where(Expr::col(Section::IsDisabled).eq(false))
         .from(Section::Table).take()
     }
 }

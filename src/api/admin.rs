@@ -234,7 +234,10 @@ pub(crate) async fn update_owner(
 
     let (sql, values) = sea_query::Query::update()
         .table(Section::Table)
-        .value(Section::Owner, body.params.owner.clone())
+        .values([
+            (Section::Owner, body.params.owner.into()),
+            (Section::OwnerSetTime, Expr::current_timestamp()),
+        ])
         .and_where(Expr::col(Section::Id).eq(body.params.section.parse::<i32>()?))
         .build_sqlx(PostgresQueryBuilder);
     sqlx::query_with(&sql, values.clone())
