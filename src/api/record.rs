@@ -67,9 +67,14 @@ pub(crate) async fn create(
             .await
             .map_err(|e| eyre!("error in section_id: {e}"))?;
 
+        let is_announcement = new_record.value["is_announcement"]
+            .as_bool()
+            .unwrap_or(false);
+        let is_top = new_record.value["is_top"].as_bool().unwrap_or(false);
+
         let admins = Administrator::all_did(&state.db).await;
 
-        if section.permission > 0
+        if (section.permission > 0 || is_announcement || is_top)
             && section.owner != Some(new_record.repo.clone())
             && !admins.contains(&new_record.repo)
         {

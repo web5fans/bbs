@@ -134,6 +134,8 @@ impl Post {
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
             .ok_or_eyre("error in created")?;
         let is_draft = post["is_draft"].as_bool().unwrap_or(false);
+        let is_announcement = post["is_announcement"].as_bool().unwrap_or(false);
+        let is_top = post["is_top"].as_bool().unwrap_or(false);
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
@@ -144,6 +146,8 @@ impl Post {
                 Self::Title,
                 Self::Text,
                 Self::IsDraft,
+                Self::IsAnnouncement,
+                Self::IsTop,
                 Self::Edited,
                 Self::Updated,
                 Self::Created,
@@ -155,6 +159,8 @@ impl Post {
                 section_id.into(),
                 title.into(),
                 text.into(),
+                is_top.into(),
+                is_announcement.into(),
                 is_draft.into(),
                 edited.into(),
                 Expr::current_timestamp(),

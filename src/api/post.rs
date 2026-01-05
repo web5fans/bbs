@@ -163,7 +163,11 @@ pub(crate) async fn top(
     let (sql, values) = Post::build_select(query.viewer.clone())
         .and_where(Expr::col((Post::Table, Post::SectionId)).eq(section_id))
         .and_where(Expr::col((Post::Table, Post::IsAnnouncement)).eq(true))
-        .order_by(Post::Created, Order::Desc)
+        .and_where(Expr::col((Post::Table, Post::IsDisabled)).eq(false))
+        .order_by_columns([
+            ((Post::Table, Post::IsTop), Order::Desc),
+            ((Post::Table, Post::Created), Order::Desc),
+        ])
         .limit(10)
         .build_sqlx(PostgresQueryBuilder);
 
