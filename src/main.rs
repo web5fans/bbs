@@ -124,6 +124,9 @@ async fn main() -> Result<()> {
             "/api/admin/delete_whitelist",
             post(api::admin::delete_whitelist),
         )
+        .route("/api/admin/list", get(api::admin::list))
+        .route("/api/admin/add", post(api::admin::add))
+        .route("/api/admin/delete", post(api::admin::delete))
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
         .route("/api/record/delete", post(api::record::delete))

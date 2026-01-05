@@ -1,8 +1,9 @@
 use chrono::{DateTime, Local};
 use color_eyre::Result;
-use sea_query::{ColumnDef, Expr, Iden, OnConflict, PostgresQueryBuilder};
+use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
+use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
 #[derive(Iden, Debug, Clone, Copy)]
@@ -60,6 +61,15 @@ impl Administrator {
         Ok(())
     }
 
+    pub async fn delete(db: &Pool<Postgres>, did: &str) -> Result<()> {
+        let (sql, values) = sea_query::Query::delete()
+            .from_table(Self::Table)
+            .and_where(Expr::col(Self::Did).eq(did))
+            .build_sqlx(PostgresQueryBuilder);
+        db.execute(query_with(&sql, values)).await?;
+        Ok(())
+    }
+
     pub fn build_select() -> sea_query::SelectStatement {
         sea_query::Query::select()
             .columns([
@@ -97,6 +107,14 @@ impl Administrator {
 pub struct AdministratorRow {
     pub did: String,
     pub permission: i32,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdministratorView {
+    pub did: Value,
+    pub permission: String,
     pub updated: DateTime<Local>,
     pub created: DateTime<Local>,
 }

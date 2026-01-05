@@ -1,7 +1,7 @@
 use color_eyre::eyre::eyre;
 use common_x::restful::{
     axum::{Json, extract::State, response::IntoResponse},
-    ok_simple,
+    ok, ok_simple,
 };
 use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -12,11 +12,11 @@ use validator::Validate;
 
 use crate::{
     AppView,
-    api::{SignedBody, SignedParam},
+    api::{SignedBody, SignedParam, build_author},
     atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY},
     error::AppError,
     lexicon::{
-        administrator::Administrator,
+        administrator::{Administrator, AdministratorView},
         comment::Comment,
         notify::{Notify, NotifyRow, NotifyType},
         post::Post,
@@ -373,6 +373,100 @@ pub(crate) async fn delete_whitelist(
     for did in body.params.whitelist {
         Whitelist::delete(&state.db, &did).await.ok();
     }
+
+    Ok(ok_simple())
+}
+
+#[utoipa::path(get, path = "/api/admin")]
+pub(crate) async fn list(State(state): State<AppView>) -> Result<impl IntoResponse, AppError> {
+    let rows = Administrator::all(&state.db).await;
+    let mut views: Vec<AdministratorView> = vec![];
+
+    for row in rows {
+        let author = build_author(&state, &row.did).await;
+        views.push(AdministratorView {
+            did: author,
+            permission: row.permission.to_string(),
+            updated: row.updated,
+            created: row.created,
+        });
+    }
+
+    Ok(ok(views))
+}
+
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct UpdateAdminParams {
+    pub did: String,
+    pub name: String,
+    pub timestamp: i64,
+}
+
+impl SignedParam for UpdateAdminParams {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/add")]
+pub(crate) async fn add(
+    State(state): State<AppView>,
+    Json(body): Json<SignedBody<UpdateAdminParams>>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let (sql, values) = sea_query::Query::select()
+        .column(Administrator::Did)
+        .from(Administrator::Table)
+        .and_where(Expr::col(Administrator::Permission).eq(0))
+        .build_sqlx(PostgresQueryBuilder);
+    let rows: Vec<(String,)> = sqlx::query_as_with(&sql, values)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    let super_admins: Vec<String> = rows.into_iter().map(|r| r.0).collect();
+    if !super_admins.contains(&body.did) {
+        return Err(AppError::ValidateFailed(
+            "only super administrator can add administrator".to_string(),
+        ));
+    }
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    Administrator::insert(&state.db, &body.params.did, 1).await?;
+
+    Ok(ok_simple())
+}
+
+#[utoipa::path(post, path = "/api/admin/delete")]
+pub(crate) async fn delete(
+    State(state): State<AppView>,
+    Json(body): Json<SignedBody<UpdateAdminParams>>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let (sql, values) = sea_query::Query::select()
+        .column(Administrator::Did)
+        .from(Administrator::Table)
+        .and_where(Expr::col(Administrator::Permission).eq(0))
+        .build_sqlx(PostgresQueryBuilder);
+    let rows: Vec<(String,)> = sqlx::query_as_with(&sql, values)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    let super_admins: Vec<String> = rows.into_iter().map(|r| r.0).collect();
+    if !super_admins.contains(&body.did) {
+        return Err(AppError::ValidateFailed(
+            "only super administrator can add administrator".to_string(),
+        ));
+    }
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    Administrator::delete(&state.db, &body.params.did).await?;
 
     Ok(ok_simple())
 }
