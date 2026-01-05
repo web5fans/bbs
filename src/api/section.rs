@@ -25,6 +25,7 @@ use crate::{
 #[serde(default)]
 pub struct SectionQuery {
     pub repo: Option<String>,
+    pub is_disabled: Option<bool>,
 }
 
 #[utoipa::path(get, path = "/api/section/list", params(SectionQuery))]
@@ -44,6 +45,11 @@ pub(crate) async fn list(
         } else {
             Expr::col((Section::Table, Section::Permission)).eq(0)
         })
+        .and_where_option(
+            query.is_disabled.map(|is_disabled| {
+                Expr::col((Section::Table, Section::IsDisabled)).eq(is_disabled)
+            }),
+        )
         .order_by(Section::Id, Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 

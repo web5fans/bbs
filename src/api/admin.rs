@@ -1,13 +1,18 @@
 use color_eyre::eyre::eyre;
 use common_x::restful::{
-    axum::{Json, extract::State, response::IntoResponse},
+    axum::{
+        Json,
+        extract::{Query, State},
+        response::IntoResponse,
+    },
     ok, ok_simple,
 };
-use sea_query::{Expr, ExprTrait, PostgresQueryBuilder};
+use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::query_as_with;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
 use crate::{
@@ -19,6 +24,7 @@ use crate::{
         administrator::{Administrator, AdministratorView},
         comment::Comment,
         notify::{Notify, NotifyRow, NotifyType},
+        operation::{Operation, OperationRow, OperationView},
         post::Post,
         reply::Reply,
         section::Section,
@@ -469,4 +475,74 @@ pub(crate) async fn delete(
     Administrator::delete(&state.db, &body.params.did).await?;
 
     Ok(ok_simple())
+}
+
+#[derive(Debug, Validate, Deserialize, IntoParams)]
+#[serde(default)]
+pub struct OperationQuery {
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+}
+
+impl Default for OperationQuery {
+    fn default() -> Self {
+        Self {
+            page: 1,
+            per_page: 20,
+        }
+    }
+}
+
+#[utoipa::path(get, path = "/api/admin/operations", params(OperationQuery))]
+pub(crate) async fn operations(
+    State(state): State<AppView>,
+    Query(query): Query<OperationQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    query
+        .validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let offset = query.per_page * (query.page - 1);
+    let (sql, values) = Operation::build_select()
+        .order_by(Operation::Created, Order::Desc)
+        .offset(offset)
+        .limit(query.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<OperationRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+    let mut views: Vec<OperationView> = vec![];
+
+    for row in rows {
+        let operator = build_author(&state, &row.operator).await;
+        views.push(OperationView {
+            id: row.id.to_string(),
+            operator,
+            action: row.action.clone(),
+            message: row.message.clone(),
+            // TODO: target build
+            target: row.target.clone().into(),
+            created: row.created,
+        });
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Operation::Table, Operation::Id)).count_distinct())
+        .from(Operation::Table)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    Ok(ok(json!({
+        "comments": views,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total.0
+    })))
 }

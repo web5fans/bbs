@@ -146,6 +146,145 @@ pub(crate) async fn list(
     Ok(ok(result))
 }
 
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct PostPageQuery {
+    pub section_id: Option<String>,
+    pub is_announcement: bool,
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+    pub q: Option<String>,
+    pub repo: Option<String>,
+    pub viewer: Option<String>,
+}
+
+impl Default for PostPageQuery {
+    fn default() -> Self {
+        Self {
+            section_id: Default::default(),
+            is_announcement: false,
+            page: 1,
+            per_page: 20,
+            q: Default::default(),
+            repo: Default::default(),
+            viewer: Default::default(),
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/post/page")]
+pub(crate) async fn page(
+    State(state): State<AppView>,
+    Json(query): Json<PostPageQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    query
+        .validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let offset = query.per_page * (query.page - 1);
+    let (sql, values) = Post::build_select(query.viewer.clone())
+        .and_where(Expr::col((Post::Table, Post::IsAnnouncement)).eq(query.is_announcement))
+        .and_where_option(
+            query
+                .repo
+                .as_ref()
+                .map(|repo| Expr::col((Post::Table, Post::Repo)).eq(repo)),
+        )
+        .and_where(
+            if let Some(section) = query
+                .section_id
+                .as_ref()
+                .and_then(|id| id.parse::<i32>().ok())
+            {
+                Expr::col((Post::Table, Post::SectionId)).eq(section)
+            } else {
+                Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0)
+            },
+        )
+        .and_where_option(query.q.as_ref().map(|q| {
+            (Post::Table, Post::Text)
+                .into_column_ref()
+                .like(format!("%{q}%"))
+        }))
+        .order_by_columns([
+            ((Post::Table, Post::IsTop), Order::Desc),
+            ((Post::Table, Post::Updated), Order::Desc),
+        ])
+        .offset(offset)
+        .limit(query.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let sections = Section::all(&state.db).await?;
+
+    let admins = Administrator::all_did(&state.db).await;
+    let mut views = vec![];
+    for row in rows {
+        let author = build_author(&state, &row.repo).await;
+
+        let display = if let Some(viewer) = &query.viewer {
+            &row.repo == viewer
+                || sections
+                    .get(&row.section_id)
+                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
+                || admins.contains(viewer)
+        } else {
+            false
+        };
+
+        if !row.is_disabled || display {
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_POST, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
+            views.push(PostView::build(row, author, tip_count.to_string()));
+        }
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Post::Table, Post::Uri)).count_distinct())
+        .from(Comment::Table)
+        .and_where(Expr::col((Post::Table, Post::IsDraft)).eq(false))
+        .and_where(Expr::col((Post::Table, Post::IsAnnouncement)).eq(query.is_announcement))
+        .and_where_option(
+            query
+                .repo
+                .map(|repo| Expr::col((Post::Table, Post::Repo)).eq(repo)),
+        )
+        .and_where(
+            if let Some(section) = query.section_id.and_then(|id| id.parse::<i32>().ok()) {
+                Expr::col((Post::Table, Post::SectionId)).eq(section)
+            } else {
+                Expr::col((Post::Table, Post::SectionId)).binary(BinOper::NotEqual, 0)
+            },
+        )
+        .and_where_option(query.q.map(|q| {
+            (Post::Table, Post::Text)
+                .into_column_ref()
+                .like(format!("%{q}%"))
+        }))
+        .build_sqlx(PostgresQueryBuilder);
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    Ok(ok(json!({
+        "posts": views,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total.0
+    })))
+}
+
 #[derive(Debug, Default, Validate, Deserialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct TopQuery {

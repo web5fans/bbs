@@ -4,6 +4,7 @@ pub(crate) mod administrator;
 pub(crate) mod comment;
 pub(crate) mod like;
 pub(crate) mod notify;
+pub(crate) mod operation;
 pub(crate) mod post;
 pub(crate) mod reply;
 pub(crate) mod section;

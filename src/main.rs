@@ -30,6 +30,7 @@ use crate::lexicon::administrator::Administrator;
 use crate::lexicon::comment::Comment;
 use crate::lexicon::like::Like;
 use crate::lexicon::notify::Notify;
+use crate::lexicon::operation::Operation;
 use crate::lexicon::post::Post;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
@@ -79,6 +80,7 @@ async fn main() -> Result<()> {
     Whitelist::init(&db).await?;
     Notify::init(&db).await?;
     Administrator::init(&db).await?;
+    Operation::init(&db).await?;
 
     let bbs = AppView {
         db,
@@ -124,15 +126,17 @@ async fn main() -> Result<()> {
             "/api/admin/delete_whitelist",
             post(api::admin::delete_whitelist),
         )
-        .route("/api/admin/list", get(api::admin::list))
+        .route("/api/admin", get(api::admin::list))
         .route("/api/admin/add", post(api::admin::add))
         .route("/api/admin/delete", post(api::admin::delete))
+        .route("/api/admin/operations", get(api::admin::operations))
         .route("/api/record/create", post(api::record::create))
         .route("/api/record/update", post(api::record::update))
         .route("/api/record/delete", post(api::record::delete))
         .route("/api/section/list", get(api::section::list))
         .route("/api/section/detail", get(api::section::detail))
         .route("/api/post/list", post(api::post::list))
+        .route("/api/post/page", post(api::post::page))
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
         .route("/api/post/commented", post(api::post::commented))
