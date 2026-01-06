@@ -205,7 +205,8 @@ pub(crate) async fn update_tag(
 #[serde(default)]
 pub(crate) struct UpdateOwnerParams {
     pub section: String,
-    pub owner: Option<String>,
+    pub did: Option<String>,
+    pub name: Option<String>,
     pub timestamp: i64,
 }
 
@@ -232,10 +233,31 @@ pub(crate) async fn update_owner(
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
+    if let Some(did) = &body.params.did {
+        let author = build_author(&state, did).await;
+        if let Some(display_name) = author
+            .get("displayName")
+            .and_then(|n| n.as_str())
+            .map(|n| n.to_lowercase())
+        {
+            if let Some(name) = body.params.name {
+                if name.to_lowercase() != display_name {
+                    return Err(AppError::ValidateFailed(
+                        "display name not match".to_string(),
+                    ));
+                }
+            } else {
+                return Err(AppError::ValidateFailed("name is null".to_string()));
+            }
+        } else {
+            return Err(AppError::ValidateFailed("did not found".to_string()));
+        }
+    }
+
     let (sql, values) = sea_query::Query::update()
         .table(Section::Table)
         .values([
-            (Section::Owner, body.params.owner.into()),
+            (Section::Owner, body.params.did.into()),
             (Section::OwnerSetTime, Expr::current_timestamp()),
         ])
         .and_where(Expr::col(Section::Id).eq(body.params.section.parse::<i32>()?))
@@ -443,6 +465,21 @@ pub(crate) async fn add(
     body.verify_signature(&state.indexer)
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    let author = build_author(&state, &body.params.did).await;
+    if let Some(display_name) = author
+        .get("displayName")
+        .and_then(|n| n.as_str())
+        .map(|n| n.to_lowercase())
+    {
+        if body.params.name.to_lowercase() != display_name {
+            return Err(AppError::ValidateFailed(
+                "display name not match".to_string(),
+            ));
+        }
+    } else {
+        return Err(AppError::ValidateFailed("did not found".to_string()));
+    }
 
     Administrator::insert(&state.db, &body.params.did, 1).await?;
 
