@@ -172,6 +172,20 @@ pub(crate) async fn update_tag(
             )
             .await
             .ok();
+
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "隐藏帖子".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
         }
         if let Some(false) = body.params.is_disabled {
             let (receiver, _nsid, _rkey) = crate::lexicon::resolve_uri(&body.params.uri)?;
@@ -186,6 +200,82 @@ pub(crate) async fn update_tag(
                     target_uri: body.params.uri.to_string(),
                     amount: 0,
                     readed: None,
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "取消隐藏".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
+
+        if let Some(true) = body.params.is_announcement {
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "设置公告".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
+        if let Some(false) = body.params.is_announcement {
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "下架公告".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
+
+        if let Some(true) = body.params.is_top {
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "置顶帖子".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
+                    created: chrono::Local::now(),
+                },
+            )
+            .await
+            .ok();
+        }
+        if let Some(false) = body.params.is_top {
+            Operation::insert(
+                &state.db,
+                OperationRow {
+                    id: 0,
+                    operator: body.did.to_string(),
+                    action: "取消置顶".to_string(),
+                    message: body.params.uri.to_string(),
+                    target: body.params.uri.to_string(),
                     created: chrono::Local::now(),
                 },
             )
@@ -377,9 +467,23 @@ pub(crate) async fn add_whitelist(
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
-    for did in body.params.whitelist {
-        Whitelist::insert(&state.db, &did).await.ok();
+    for did in &body.params.whitelist {
+        Whitelist::insert(&state.db, did).await.ok();
     }
+
+    Operation::insert(
+        &state.db,
+        OperationRow {
+            id: 0,
+            operator: body.did,
+            action: "添加白名单".to_string(),
+            message: json!(body.params.whitelist).to_string(),
+            target: String::default(),
+            created: chrono::Local::now(),
+        },
+    )
+    .await
+    .ok();
 
     Ok(ok_simple())
 }
@@ -401,9 +505,23 @@ pub(crate) async fn delete_whitelist(
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
-    for did in body.params.whitelist {
-        Whitelist::delete(&state.db, &did).await.ok();
+    for did in &body.params.whitelist {
+        Whitelist::delete(&state.db, did).await.ok();
     }
+
+    Operation::insert(
+        &state.db,
+        OperationRow {
+            id: 0,
+            operator: body.did,
+            action: "删除白名单".to_string(),
+            message: json!(body.params.whitelist).to_string(),
+            target: String::default(),
+            created: chrono::Local::now(),
+        },
+    )
+    .await
+    .ok();
 
     Ok(ok_simple())
 }
@@ -483,6 +601,20 @@ pub(crate) async fn add(
 
     Administrator::insert(&state.db, &body.params.did, 1).await?;
 
+    Operation::insert(
+        &state.db,
+        OperationRow {
+            id: 0,
+            operator: body.did,
+            action: "添加管理员".to_string(),
+            message: author.to_string(),
+            target: String::default(),
+            created: chrono::Local::now(),
+        },
+    )
+    .await
+    .ok();
+
     Ok(ok_simple())
 }
 
@@ -513,6 +645,21 @@ pub(crate) async fn delete(
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
     Administrator::delete(&state.db, &body.params.did).await?;
+
+    let author = build_author(&state, &body.params.did).await;
+    Operation::insert(
+        &state.db,
+        OperationRow {
+            id: 0,
+            operator: body.did,
+            action: "删除管理员".to_string(),
+            message: author.to_string(),
+            target: String::default(),
+            created: chrono::Local::now(),
+        },
+    )
+    .await
+    .ok();
 
     Ok(ok_simple())
 }
