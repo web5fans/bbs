@@ -418,35 +418,39 @@ pub(crate) async fn commented(
         .limit(query.limit)
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<CommentRow> = query_as_with(&sql, values.clone())
+    let comments: Vec<CommentRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
-    let cursor = rows.last().map(|r| r.created.timestamp());
-    let roots = rows
-        .into_iter()
-        .map(|r| (r.post.clone(), r))
-        .collect::<HashMap<String, CommentRow>>();
+    let cursor = comments.last().map(|r| r.created.timestamp());
+    let roots = comments
+        .iter()
+        .map(|r| r.post.clone())
+        .collect::<Vec<String>>();
 
     let (sql, values) = Post::build_select(query.viewer.clone())
-        .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
+        .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots))
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
+    let posts: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
+    let posts = posts
+        .into_iter()
+        .map(|p| (p.uri.clone(), p))
+        .collect::<HashMap<String, PostRow>>();
 
     let sections = Section::all(&state.db).await?;
     let admins = Administrator::all_did(&state.db).await;
     let mut views = vec![];
-    for row in rows {
-        if let Some(comment) = roots.get(&row.uri).cloned() {
-            let post_author = build_author(&state, &row.repo).await;
+    for comment in comments {
+        if let Some(post) = posts.get(&comment.post).cloned() {
+            let post_author = build_author(&state, &post.repo).await;
             let post_display = if let Some(viewer) = &query.viewer {
-                &row.repo == viewer
+                &post.repo == viewer
                     || sections
-                        .get(&row.section_id)
+                        .get(&post.section_id)
                         .is_some_and(|section| section.owner.as_ref() == Some(viewer))
                     || admins.contains(viewer)
             } else {
@@ -455,22 +459,22 @@ pub(crate) async fn commented(
             let comment_display = if let Some(viewer) = &query.viewer {
                 &comment.repo == viewer
                     || sections
-                        .get(&row.section_id)
+                        .get(&comment.section_id)
                         .is_some_and(|section| section.owner.as_ref() == Some(viewer))
                     || admins.contains(viewer)
             } else {
                 false
             };
-            if (!row.is_disabled || post_display) && (!comment.is_disabled || comment_display) {
+            if (!post.is_disabled || post_display) && (!comment.is_disabled || comment_display) {
                 let tip_count = micro_pay::payment_completed_total(
                     &state.pay_url,
-                    &format!("{}/{}", NSID_POST, row.uri),
+                    &format!("{}/{}", NSID_POST, post.uri),
                 )
                 .await
                 .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
                 .unwrap_or(0);
                 views.push(PostRepliedView::build(
-                    row,
+                    post,
                     post_author,
                     comment,
                     tip_count.to_string(),
@@ -525,41 +529,47 @@ pub(crate) async fn commented_page(
         .limit(query.per_page)
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<CommentRow> = query_as_with(&sql, values.clone())
+    let comments: Vec<CommentRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
-    let roots = rows
-        .into_iter()
-        .map(|r| (r.post.clone(), r))
-        .collect::<HashMap<String, CommentRow>>();
+    let roots = comments
+        .iter()
+        .map(|r| r.post.clone())
+        .collect::<Vec<String>>();
 
     let (sql, values) = Post::build_select(query.viewer.clone())
-        .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots.keys()))
+        .and_where(Expr::col((Post::Table, Post::Uri)).is_in(roots))
         .build_sqlx(PostgresQueryBuilder);
 
-    let rows: Vec<PostRow> = query_as_with(&sql, values.clone())
+    let posts: Vec<PostRow> = query_as_with(&sql, values.clone())
         .fetch_all(&state.db)
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
+    let posts = posts
+        .into_iter()
+        .map(|p| (p.uri.clone(), p))
+        .collect::<HashMap<String, PostRow>>();
 
     let mut views = vec![];
-    for row in rows {
-        if let Some(comment) = roots.get(&row.uri).cloned() {
-            let post_author = build_author(&state, &row.repo).await;
+    for comment in comments {
+        if let Some(post) = posts.get(&comment.post).cloned() {
+            let post_author = build_author(&state, &post.repo).await;
             let tip_count = micro_pay::payment_completed_total(
                 &state.pay_url,
-                &format!("{}/{}", NSID_POST, row.uri),
+                &format!("{}/{}", NSID_POST, post.uri),
             )
             .await
             .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
             .unwrap_or(0);
             views.push(PostRepliedView::build(
-                row,
+                post,
                 post_author,
                 comment,
                 tip_count.to_string(),
             ));
+        } else {
+            warn!("post not found: {}", comment.post);
         }
     }
     let (sql, values) = sea_query::Query::select()
@@ -569,6 +579,7 @@ pub(crate) async fn commented_page(
         .and_where_option(
             query
                 .repo
+                .as_ref()
                 .map(|repo| Expr::col((Comment::Table, Comment::Repo)).eq(repo)),
         )
         .and_where_option(

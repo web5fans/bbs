@@ -297,7 +297,7 @@ impl Post {
     }
 }
 
-#[derive(sqlx::FromRow, Debug, Serialize)]
+#[derive(sqlx::FromRow, Debug, Serialize, Clone)]
 pub struct PostRow {
     pub uri: String,
     pub cid: String,
@@ -439,6 +439,7 @@ pub struct PostRepliedView {
     pub is_draft: bool,
     pub reasons_for_disabled: Option<String>,
     pub comment_text: String,
+    pub comment_updated: DateTime<Local>,
     pub comment_created: DateTime<Local>,
     pub comment_disabled: bool,
     pub comment_reasons_for_disabled: Option<String>,
@@ -459,6 +460,7 @@ impl PostRepliedView {
     pub fn build(row: PostRow, author: Value, comment: CommentRow, tip_count: String) -> Self {
         Self {
             comment_text: comment.text,
+            comment_updated: comment.updated,
             comment_created: comment.created,
             comment_disabled: comment.is_disabled,
             comment_reasons_for_disabled: comment.reasons_for_disabled,
