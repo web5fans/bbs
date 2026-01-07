@@ -366,6 +366,7 @@ pub(crate) struct UpdateSectionParams {
     pub name: Option<String>,
     pub description: Option<String>,
     pub image: Option<String>,
+    pub ckb_addr: Option<String>,
     pub is_disabled: Option<bool>,
     pub timestamp: i64,
 }
@@ -384,16 +385,18 @@ pub(crate) async fn update_section(
     body.validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     let admins = Administrator::all_did(&state.db).await;
-    if !admins.contains(&body.did) {
-        return Err(AppError::ValidateFailed(
-            "only administrator can update section owner".to_string(),
-        ));
-    }
     body.verify_signature(&state.indexer)
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
+    let section = Section::select_by_id(&state.db, body.params.section.parse::<i32>()?).await?;
+
     if let Some(is_disabled) = body.params.is_disabled {
+        if !admins.contains(&body.did) {
+            return Err(AppError::ValidateFailed(
+                "only administrator can hide section".to_string(),
+            ));
+        }
         let (sql, values) = sea_query::Query::update()
             .table(Section::Table)
             .value(Section::IsDisabled, is_disabled)
@@ -404,6 +407,11 @@ pub(crate) async fn update_section(
             .await?;
     }
     if let Some(name) = &body.params.name {
+        if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
+            return Err(AppError::ValidateFailed(
+                "only administrator or section owner can update section".to_string(),
+            ));
+        }
         let (sql, values) = sea_query::Query::update()
             .table(Section::Table)
             .value(Section::Name, name.clone())
@@ -414,6 +422,11 @@ pub(crate) async fn update_section(
             .await?;
     }
     if let Some(description) = &body.params.description {
+        if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
+            return Err(AppError::ValidateFailed(
+                "only administrator or section owner can update section".to_string(),
+            ));
+        }
         let (sql, values) = sea_query::Query::update()
             .table(Section::Table)
             .value(Section::Description, description.clone())
@@ -424,6 +437,11 @@ pub(crate) async fn update_section(
             .await?;
     }
     if let Some(image) = &body.params.image {
+        if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
+            return Err(AppError::ValidateFailed(
+                "only administrator or section owner can update section".to_string(),
+            ));
+        }
         let (sql, values) = sea_query::Query::update()
             .table(Section::Table)
             .value(Section::Image, image.clone())
@@ -433,6 +451,81 @@ pub(crate) async fn update_section(
             .execute(&state.db)
             .await?;
     }
+    if let Some(ckb_addr) = &body.params.ckb_addr {
+        if !admins.contains(&body.did) {
+            return Err(AppError::ValidateFailed(
+                "only administrator can update section ckb_addr".to_string(),
+            ));
+        }
+        let (sql, values) = sea_query::Query::update()
+            .table(Section::Table)
+            .value(Section::CkbAddr, ckb_addr.clone())
+            .and_where(Expr::col(Section::Id).eq(body.params.section.parse::<i32>()?))
+            .build_sqlx(PostgresQueryBuilder);
+        sqlx::query_with(&sql, values.clone())
+            .execute(&state.db)
+            .await?;
+    }
+
+    Ok(ok_simple())
+}
+
+#[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct CreateSectionParams {
+    pub name: String,
+    pub description: String,
+    pub image: String,
+    pub owner: String,
+    pub ckb_addr: String,
+    pub timestamp: i64,
+}
+
+impl SignedParam for CreateSectionParams {
+    fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/create_section")]
+pub(crate) async fn create_section(
+    State(state): State<AppView>,
+    Json(body): Json<SignedBody<CreateSectionParams>>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let admins = Administrator::all_did(&state.db).await;
+    if !admins.contains(&body.did) {
+        return Err(AppError::ValidateFailed(
+            "only administrator can update section owner".to_string(),
+        ));
+    }
+    body.verify_signature(&state.indexer)
+        .await
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+
+    let (sql, values) = sea_query::Query::insert()
+        .into_table(Section::Table)
+        .columns([
+            Section::Name,
+            Section::Description,
+            Section::Image,
+            Section::CkbAddr,
+            Section::Owner,
+            Section::OwnerSetTime,
+        ])
+        .values([
+            body.params.name.into(),
+            body.params.description.into(),
+            body.params.image.into(),
+            body.params.ckb_addr.into(),
+            body.params.owner.into(),
+            Expr::current_timestamp(),
+        ])?
+        .build_sqlx(PostgresQueryBuilder);
+    sqlx::query_with(&sql, values.clone())
+        .execute(&state.db)
+        .await?;
 
     Ok(ok_simple())
 }

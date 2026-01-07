@@ -121,6 +121,10 @@ async fn main() -> Result<()> {
             "/api/admin/update_section",
             post(api::admin::update_section),
         )
+        .route(
+            "/api/admin/create_section",
+            post(api::admin::create_section),
+        )
         .route("/api/admin/add_whitelist", post(api::admin::add_whitelist))
         .route(
             "/api/admin/delete_whitelist",
@@ -140,6 +144,7 @@ async fn main() -> Result<()> {
         .route("/api/post/top", post(api::post::top))
         .route("/api/post/detail", get(api::post::detail))
         .route("/api/post/commented", post(api::post::commented))
+        .route("/api/post/commented_page", post(api::post::commented_page))
         .route("/api/post/list_draft", post(api::post::list_draft))
         .route("/api/post/detail_draft", get(api::post::detail_draft))
         .route("/api/comment/list", post(api::comment::list))

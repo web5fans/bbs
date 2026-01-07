@@ -130,7 +130,6 @@ impl Comment {
                         Self::Post,
                         Self::Text,
                         Self::Edited,
-                        Self::Updated,
                     ])
                     .to_owned(),
             )
@@ -199,14 +198,16 @@ impl Comment {
     ) -> Result<()> {
         let mut values = Vec::new();
         if let Some(is_disabled) = is_disabled {
-            values.push((Post::IsDisabled, is_disabled.into()));
+            values.push((Self::IsDisabled, is_disabled.into()));
         }
         if let Some(reasons_for_disabled) = reasons_for_disabled {
-            values.push((Post::ReasonsForDisabled, reasons_for_disabled.into()));
+            values.push((Self::ReasonsForDisabled, reasons_for_disabled.into()));
         }
         if values.is_empty() {
             return Ok(());
         }
+
+        values.push((Self::Updated, Expr::current_timestamp()));
 
         let (sql, values) = sea_query::Query::update()
             .table(Self::Table)
