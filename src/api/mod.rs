@@ -15,7 +15,13 @@ use crate::{
     AppView,
     atproto::{NSID_PROFILE, get_record},
     ckb::get_ckb_addr_by_did,
-    lexicon::{comment::Comment, like::Like, post::Post},
+    lexicon::{
+        administrator::{Administrator, AdministratorRow},
+        comment::Comment,
+        like::Like,
+        post::Post,
+        section::{Section, SectionRowSample},
+    },
 };
 
 pub(crate) mod admin;
@@ -176,6 +182,39 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     author["post_count"] = Value::String(post_count_row.0.to_string());
     author["comment_count"] = Value::String(comment_count_row.0.to_string());
     author["like_count"] = Value::String(like_count_row.0.to_string());
+
+    let (sql, values) = Administrator::build_select()
+        .and_where(Expr::col(Administrator::Did).eq(repo))
+        .build_sqlx(PostgresQueryBuilder);
+    let row: Option<AdministratorRow> = sqlx::query_as_with(&sql, values)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+    if let Some(admin) = row {
+        let mut tags = author["tags"]
+            .as_array_mut()
+            .unwrap_or(&mut vec![])
+            .to_vec();
+        tags.push(json!({"admin": admin.permission}));
+        author["tags"] = serde_json::Value::Array(tags);
+    }
+
+    let (sql, values) = Section::build_select()
+        .and_where(Expr::col(Section::Owner).eq(repo))
+        .build_sqlx(PostgresQueryBuilder);
+    let row: Option<SectionRowSample> = sqlx::query_as_with(&sql, values)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+    if let Some(section) = row {
+        let mut tags = author["tags"]
+            .as_array_mut()
+            .unwrap_or(&mut vec![])
+            .to_vec();
+        tags.push(json!({"owner": section.name}));
+        author["tags"] = serde_json::Value::Array(tags);
+    }
+
     author
 }
 

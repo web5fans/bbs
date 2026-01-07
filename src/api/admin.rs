@@ -11,7 +11,7 @@ use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::query_as_with;
+use sqlx::{Executor, query_as_with, query_with};
 use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
@@ -497,7 +497,7 @@ pub(crate) async fn create_section(
     let admins = Administrator::all_did(&state.db).await;
     if !admins.contains(&body.did) {
         return Err(AppError::ValidateFailed(
-            "only administrator can update section owner".to_string(),
+            "only administrator can create section owner".to_string(),
         ));
     }
     body.verify_signature(&state.indexer)
@@ -522,10 +522,9 @@ pub(crate) async fn create_section(
             body.params.owner.into(),
             Expr::current_timestamp(),
         ])?
+        .returning_col(Section::Id)
         .build_sqlx(PostgresQueryBuilder);
-    sqlx::query_with(&sql, values.clone())
-        .execute(&state.db)
-        .await?;
+    state.db.execute(query_with(&sql, values)).await?;
 
     Ok(ok_simple())
 }
@@ -553,7 +552,7 @@ pub(crate) async fn add_whitelist(
     let admins = Administrator::all_did(&state.db).await;
     if !admins.contains(&body.did) {
         return Err(AppError::ValidateFailed(
-            "only administrator can update section owner".to_string(),
+            "only administrator can add whitelist".to_string(),
         ));
     }
     body.verify_signature(&state.indexer)
@@ -591,7 +590,7 @@ pub(crate) async fn delete_whitelist(
     let admins = Administrator::all_did(&state.db).await;
     if !admins.contains(&body.did) {
         return Err(AppError::ValidateFailed(
-            "only administrator can update section owner".to_string(),
+            "only administrator can delete whitelist".to_string(),
         ));
     }
     body.verify_signature(&state.indexer)
@@ -730,7 +729,7 @@ pub(crate) async fn delete(
     let super_admins: Vec<String> = rows.into_iter().map(|r| r.0).collect();
     if !super_admins.contains(&body.did) {
         return Err(AppError::ValidateFailed(
-            "only super administrator can add administrator".to_string(),
+            "only super administrator can delete administrator".to_string(),
         ));
     }
     body.verify_signature(&state.indexer)
