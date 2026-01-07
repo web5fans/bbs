@@ -177,6 +177,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "隐藏帖子".to_string(),
                     message: body.params.uri.to_string(),
@@ -210,6 +211,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "取消隐藏".to_string(),
                     message: body.params.uri.to_string(),
@@ -226,6 +228,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "设置公告".to_string(),
                     message: body.params.uri.to_string(),
@@ -241,6 +244,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "下架公告".to_string(),
                     message: body.params.uri.to_string(),
@@ -257,6 +261,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "置顶帖子".to_string(),
                     message: body.params.uri.to_string(),
@@ -272,6 +277,7 @@ pub(crate) async fn update_tag(
                 &state.db,
                 OperationRow {
                     id: 0,
+                    section_id,
                     operator: body.did.to_string(),
                     action: "取消置顶".to_string(),
                     message: body.params.uri.to_string(),
@@ -388,8 +394,8 @@ pub(crate) async fn update_section(
     body.verify_signature(&state.indexer)
         .await
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
-
-    let section = Section::select_by_id(&state.db, body.params.section.parse::<i32>()?).await?;
+    let section_id = body.params.section.parse::<i32>()?;
+    let section = Section::select_by_id(&state.db, section_id).await?;
 
     if let Some(is_disabled) = body.params.is_disabled {
         if !admins.contains(&body.did) {
@@ -400,11 +406,30 @@ pub(crate) async fn update_section(
         let (sql, values) = sea_query::Query::update()
             .table(Section::Table)
             .value(Section::IsDisabled, is_disabled)
-            .and_where(Expr::col(Section::Id).eq(body.params.section.parse::<i32>()?))
+            .and_where(Expr::col(Section::Id).eq(section_id))
             .build_sqlx(PostgresQueryBuilder);
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+
+        Operation::insert(
+            &state.db,
+            OperationRow {
+                id: 0,
+                section_id,
+                operator: body.did.to_string(),
+                action: if is_disabled {
+                    "隐藏版区".to_string()
+                } else {
+                    "取消隐藏版区".to_string()
+                },
+                message: body.params.section.to_string(),
+                target: body.params.section.to_string(),
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
     }
     if let Some(name) = &body.params.name {
         if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
@@ -420,6 +445,20 @@ pub(crate) async fn update_section(
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+        Operation::insert(
+            &state.db,
+            OperationRow {
+                id: 0,
+                section_id,
+                operator: body.did.to_string(),
+                action: "更新版区名称".to_string(),
+                message: name.to_string(),
+                target: body.params.section.to_string(),
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
     }
     if let Some(description) = &body.params.description {
         if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
@@ -435,6 +474,20 @@ pub(crate) async fn update_section(
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+        Operation::insert(
+            &state.db,
+            OperationRow {
+                id: 0,
+                section_id,
+                operator: body.did.to_string(),
+                action: "更新版区简介".to_string(),
+                message: description.to_string(),
+                target: body.params.section.to_string(),
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
     }
     if let Some(image) = &body.params.image {
         if !admins.contains(&body.did) && section.owner != Some(body.did.clone()) {
@@ -450,6 +503,20 @@ pub(crate) async fn update_section(
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+        Operation::insert(
+            &state.db,
+            OperationRow {
+                id: 0,
+                section_id,
+                operator: body.did.to_string(),
+                action: "更新版区头像".to_string(),
+                message: image.to_string(),
+                target: body.params.section.to_string(),
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
     }
     if let Some(ckb_addr) = &body.params.ckb_addr {
         if !admins.contains(&body.did) {
@@ -465,6 +532,20 @@ pub(crate) async fn update_section(
         sqlx::query_with(&sql, values.clone())
             .execute(&state.db)
             .await?;
+        Operation::insert(
+            &state.db,
+            OperationRow {
+                id: 0,
+                section_id,
+                operator: body.did.to_string(),
+                action: "更新版区金库".to_string(),
+                message: ckb_addr.to_string(),
+                target: body.params.section.to_string(),
+                created: chrono::Local::now(),
+            },
+        )
+        .await
+        .ok();
     }
 
     Ok(ok_simple())
@@ -567,6 +648,7 @@ pub(crate) async fn add_whitelist(
         &state.db,
         OperationRow {
             id: 0,
+            section_id: 0,
             operator: body.did,
             action: "添加白名单".to_string(),
             message: json!(body.params.whitelist).to_string(),
@@ -605,6 +687,7 @@ pub(crate) async fn delete_whitelist(
         &state.db,
         OperationRow {
             id: 0,
+            section_id: 0,
             operator: body.did,
             action: "删除白名单".to_string(),
             message: json!(body.params.whitelist).to_string(),
@@ -697,6 +780,7 @@ pub(crate) async fn add(
         &state.db,
         OperationRow {
             id: 0,
+            section_id: 0,
             operator: body.did,
             action: "添加管理员".to_string(),
             message: author.to_string(),
@@ -743,6 +827,7 @@ pub(crate) async fn delete(
         &state.db,
         OperationRow {
             id: 0,
+            section_id: 0,
             operator: body.did,
             action: "删除管理员".to_string(),
             message: author.to_string(),
@@ -759,6 +844,7 @@ pub(crate) async fn delete(
 #[derive(Debug, Validate, Deserialize, IntoParams)]
 #[serde(default)]
 pub struct OperationQuery {
+    pub section: String,
     #[validate(range(min = 1))]
     pub page: u64,
     #[validate(range(min = 1))]
@@ -768,6 +854,7 @@ pub struct OperationQuery {
 impl Default for OperationQuery {
     fn default() -> Self {
         Self {
+            section: "0".to_string(),
             page: 1,
             per_page: 20,
         }
@@ -784,6 +871,9 @@ pub(crate) async fn operations(
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
     let offset = query.per_page * (query.page - 1);
     let (sql, values) = Operation::build_select()
+        .and_where(
+            Expr::col((Operation::Table, Operation::SectionId)).eq(query.section.parse::<i32>()?),
+        )
         .order_by(Operation::Created, Order::Desc)
         .offset(offset)
         .limit(query.per_page)
@@ -799,6 +889,7 @@ pub(crate) async fn operations(
         let operator = build_author(&state, &row.operator).await;
         views.push(OperationView {
             id: row.id.to_string(),
+            section_id: row.section_id.to_string(),
             operator,
             action: row.action.clone(),
             message: row.message.clone(),
@@ -811,6 +902,9 @@ pub(crate) async fn operations(
     let (sql, values) = sea_query::Query::select()
         .expr(Expr::col((Operation::Table, Operation::Id)).count_distinct())
         .from(Operation::Table)
+        .and_where(
+            Expr::col((Operation::Table, Operation::SectionId)).eq(query.section.parse::<i32>()?),
+        )
         .build_sqlx(PostgresQueryBuilder);
 
     let total: (i64,) = query_as_with(&sql, values.clone())

@@ -10,6 +10,7 @@ use sqlx::{Executor, Pool, Postgres, query, query_with};
 pub enum Operation {
     Table,
     Id,
+    SectionId,
     Operator,
     Action,
     Message,
@@ -29,6 +30,7 @@ impl Operation {
                     .not_null()
                     .primary_key(),
             )
+            .col(ColumnDef::new(Self::SectionId).integer().not_null())
             .col(ColumnDef::new(Self::Operator).string().not_null())
             .col(ColumnDef::new(Self::Action).string().not_null())
             .col(ColumnDef::new(Self::Message).string())
@@ -48,6 +50,7 @@ impl Operation {
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([
+                Self::SectionId,
                 Self::Operator,
                 Self::Action,
                 Self::Message,
@@ -55,6 +58,7 @@ impl Operation {
                 Self::Created,
             ])
             .values([
+                row.section_id.into(),
                 row.operator.into(),
                 row.action.into(),
                 row.message.into(),
@@ -72,6 +76,7 @@ impl Operation {
         sea_query::Query::select()
             .columns([
                 (Operation::Table, Operation::Id),
+                (Operation::Table, Operation::SectionId),
                 (Operation::Table, Operation::Operator),
                 (Operation::Table, Operation::Action),
                 (Operation::Table, Operation::Message),
@@ -86,6 +91,7 @@ impl Operation {
 #[derive(sqlx::FromRow, Debug, Serialize)]
 pub struct OperationRow {
     pub id: i32,
+    pub section_id: i32,
     pub operator: String,
     pub action: String,
     pub message: String,
@@ -96,6 +102,7 @@ pub struct OperationRow {
 #[derive(Debug, Serialize)]
 pub struct OperationView {
     pub id: String,
+    pub section_id: String,
     pub operator: Value,
     pub action: String,
     pub message: String,

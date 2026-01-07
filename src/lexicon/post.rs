@@ -438,6 +438,7 @@ pub struct PostRepliedView {
     pub is_disabled: bool,
     pub is_draft: bool,
     pub reasons_for_disabled: Option<String>,
+    pub comment_uri: String,
     pub comment_text: String,
     pub comment_updated: DateTime<Local>,
     pub comment_created: DateTime<Local>,
@@ -459,6 +460,7 @@ pub struct PostRepliedView {
 impl PostRepliedView {
     pub fn build(row: PostRow, author: Value, comment: CommentRow, tip_count: String) -> Self {
         Self {
+            comment_uri: comment.uri,
             comment_text: comment.text,
             comment_updated: comment.updated,
             comment_created: comment.created,
