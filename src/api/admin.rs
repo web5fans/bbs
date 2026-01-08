@@ -27,6 +27,7 @@ use crate::{
         operation::{Operation, OperationRow, OperationView},
         post::Post,
         reply::Reply,
+        resolve_uri,
         section::Section,
         whitelist::Whitelist,
     },
@@ -35,7 +36,6 @@ use crate::{
 #[derive(Debug, Default, Validate, Deserialize, Serialize, ToSchema)]
 #[serde(default)]
 pub(crate) struct UpdateTagParams {
-    pub nsid: String,
     pub uri: String,
     pub is_top: Option<bool>,
     pub is_announcement: Option<bool>,
@@ -58,7 +58,9 @@ pub(crate) async fn update_tag(
     body.validate()
         .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
 
-    let section_id = match body.params.nsid.as_str() {
+    let (did, nsid, _rkey) = resolve_uri(&body.params.uri)
+        .map_err(|_| AppError::ValidateFailed("invalid uri".to_string()))?;
+    let section_id = match nsid {
         NSID_POST => {
             let (sql, values) = sea_query::Query::select()
                 .columns([(Post::Table, Post::SectionId)])
@@ -120,7 +122,7 @@ pub(crate) async fn update_tag(
         body.verify_signature(&state.indexer)
             .await
             .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
-        match body.params.nsid.as_str() {
+        match nsid {
             NSID_POST => {
                 Post::update_tag(
                     &state.db,
@@ -155,14 +157,13 @@ pub(crate) async fn update_tag(
 
         // notify
         if let Some(true) = body.params.is_disabled {
-            let (receiver, _nsid, _rkey) = crate::lexicon::resolve_uri(&body.params.uri)?;
             Notify::insert(
                 &state.db,
                 &NotifyRow {
                     id: 0,
                     title: "Be Hidden".to_string(),
                     sender: body.did.to_string(),
-                    receiver: receiver.to_string(),
+                    receiver: did.to_string(),
                     n_type: NotifyType::BeHidden as i32,
                     target_uri: body.params.uri.to_string(),
                     amount: 0,
@@ -189,14 +190,13 @@ pub(crate) async fn update_tag(
             .ok();
         }
         if let Some(false) = body.params.is_disabled {
-            let (receiver, _nsid, _rkey) = crate::lexicon::resolve_uri(&body.params.uri)?;
             Notify::insert(
                 &state.db,
                 &NotifyRow {
                     id: 0,
                     title: "Be Displayed".to_string(),
                     sender: body.did.to_string(),
-                    receiver: receiver.to_string(),
+                    receiver: did.to_string(),
                     n_type: NotifyType::BeDisplayed as i32,
                     target_uri: body.params.uri.to_string(),
                     amount: 0,
