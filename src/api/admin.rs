@@ -966,7 +966,7 @@ async fn get_source(state: &AppView, uri: &str) -> Result<Value, AppError> {
                     .from(Post::Table)
                     .and_where(Expr::col(Post::Uri).eq(uri))
                     .build_sqlx(PostgresQueryBuilder);
-                let row: (String, bool, String) = query_as_with(&sql, values.clone())
+                let row: (String, bool, Option<String>) = query_as_with(&sql, values.clone())
                     .fetch_one(&state.db)
                     .await
                     .map_err(|e| {
@@ -992,13 +992,14 @@ async fn get_source(state: &AppView, uri: &str) -> Result<Value, AppError> {
                     .from(Comment::Table)
                     .and_where(Expr::col(Comment::Uri).eq(uri))
                     .build_sqlx(PostgresQueryBuilder);
-                let row: (String, String, bool, String) = query_as_with(&sql, values.clone())
-                    .fetch_one(&state.db)
-                    .await
-                    .map_err(|e| {
-                        debug!("exec sql failed: {e}");
-                        AppError::NotFound
-                    })?;
+                let row: (String, String, bool, Option<String>) =
+                    query_as_with(&sql, values.clone())
+                        .fetch_one(&state.db)
+                        .await
+                        .map_err(|e| {
+                            debug!("exec sql failed: {e}");
+                            AppError::NotFound
+                        })?;
                 json!({
                     "nsid": nsid,
                     "uri": uri,
@@ -1021,7 +1022,7 @@ async fn get_source(state: &AppView, uri: &str) -> Result<Value, AppError> {
                     .from(Reply::Table)
                     .and_where(Expr::col(Reply::Uri).eq(uri))
                     .build_sqlx(PostgresQueryBuilder);
-                let row: (String, String, String, String, bool, String) =
+                let row: (String, String, String, String, bool, Option<String>) =
                     query_as_with(&sql, values.clone())
                         .fetch_one(&state.db)
                         .await
