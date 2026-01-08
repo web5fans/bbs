@@ -5,6 +5,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
+use utoipa::ToSchema;
 
 #[derive(Iden, Debug, Clone, Copy)]
 pub enum Operation {
@@ -12,10 +13,37 @@ pub enum Operation {
     Id,
     SectionId,
     Operator,
+    ActionType,
     Action,
     Message,
     Target,
     Created,
+}
+
+#[derive(Debug, Clone, Copy, Default, ToSchema)]
+pub enum ActionType {
+    #[default]
+    Default = 0,
+    DisablePost,
+    EnablePost,
+    DisableComment,
+    EnableComment,
+    DisableReply,
+    EnableReply,
+    DisableSection,
+    EnableSection,
+    UpdateSectionName,
+    UpdateSectionDescription,
+    UpdateSectionImage,
+    UpdateSectionCkbAddr,
+    SetAnnouncement,
+    CancelAnnouncement,
+    SetTop,
+    CancelTop,
+    AddWhitelist,
+    DeleteWhitelist,
+    AddAdmin,
+    DeleteAdmin,
 }
 
 impl Operation {
@@ -32,6 +60,12 @@ impl Operation {
             )
             .col(ColumnDef::new(Self::SectionId).integer().not_null())
             .col(ColumnDef::new(Self::Operator).string().not_null())
+            .col(
+                ColumnDef::new(Self::ActionType)
+                    .integer()
+                    .not_null()
+                    .default(ActionType::Default as i32),
+            )
             .col(ColumnDef::new(Self::Action).string().not_null())
             .col(ColumnDef::new(Self::Message).string())
             .col(ColumnDef::new(Self::Target).string().not_null())
@@ -52,6 +86,7 @@ impl Operation {
             .columns([
                 Self::SectionId,
                 Self::Operator,
+                Self::ActionType,
                 Self::Action,
                 Self::Message,
                 Self::Target,
@@ -60,6 +95,7 @@ impl Operation {
             .values([
                 row.section_id.into(),
                 row.operator.into(),
+                row.action_type.into(),
                 row.action.into(),
                 row.message.into(),
                 row.target.into(),
@@ -78,6 +114,7 @@ impl Operation {
                 (Operation::Table, Operation::Id),
                 (Operation::Table, Operation::SectionId),
                 (Operation::Table, Operation::Operator),
+                (Operation::Table, Operation::ActionType),
                 (Operation::Table, Operation::Action),
                 (Operation::Table, Operation::Message),
                 (Operation::Table, Operation::Target),
@@ -93,6 +130,7 @@ pub struct OperationRow {
     pub id: i32,
     pub section_id: i32,
     pub operator: String,
+    pub action_type: i32,
     pub action: String,
     pub message: String,
     pub target: String,
@@ -104,6 +142,7 @@ pub struct OperationView {
     pub id: String,
     pub section_id: String,
     pub operator: Value,
+    pub action_type: String,
     pub action: String,
     pub message: String,
     pub target: Value,
