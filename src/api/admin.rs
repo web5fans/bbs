@@ -10,7 +10,7 @@ use common_x::restful::{
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use sqlx::{Executor, query_as_with, query_with};
 use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
@@ -18,7 +18,7 @@ use validator::Validate;
 use crate::{
     AppView,
     api::{SignedBody, SignedParam, build_author},
-    atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY},
+    atproto::{NSID_COMMENT, NSID_POST, NSID_REPLY, NSID_SECTION},
     error::AppError,
     lexicon::{
         administrator::{Administrator, AdministratorView},
@@ -424,7 +424,7 @@ pub(crate) async fn update_section(
                     "取消隐藏版区".to_string()
                 },
                 message: body.params.section.to_string(),
-                target: body.params.section.to_string(),
+                target: format!("{}/{}", NSID_SECTION, section_id),
                 created: chrono::Local::now(),
             },
         )
@@ -453,7 +453,7 @@ pub(crate) async fn update_section(
                 operator: body.did.to_string(),
                 action: "更新版区名称".to_string(),
                 message: name.to_string(),
-                target: body.params.section.to_string(),
+                target: format!("{}/{}", NSID_SECTION, section_id),
                 created: chrono::Local::now(),
             },
         )
@@ -482,7 +482,7 @@ pub(crate) async fn update_section(
                 operator: body.did.to_string(),
                 action: "更新版区简介".to_string(),
                 message: description.to_string(),
-                target: body.params.section.to_string(),
+                target: format!("{}/{}", NSID_SECTION, section_id),
                 created: chrono::Local::now(),
             },
         )
@@ -511,7 +511,7 @@ pub(crate) async fn update_section(
                 operator: body.did.to_string(),
                 action: "更新版区头像".to_string(),
                 message: image.to_string(),
-                target: body.params.section.to_string(),
+                target: format!("{}/{}", NSID_SECTION, section_id),
                 created: chrono::Local::now(),
             },
         )
@@ -540,7 +540,7 @@ pub(crate) async fn update_section(
                 operator: body.did.to_string(),
                 action: "更新版区金库".to_string(),
                 message: ckb_addr.to_string(),
-                target: body.params.section.to_string(),
+                target: format!("{}/{}", NSID_SECTION, section_id),
                 created: chrono::Local::now(),
             },
         )
@@ -893,8 +893,11 @@ pub(crate) async fn operations(
             operator,
             action: row.action.clone(),
             message: row.message.clone(),
-            // TODO: target build
-            target: row.target.clone().into(),
+            target: if let Ok(source) = get_source(&state, &row.target).await {
+                source
+            } else {
+                row.target.into()
+            },
             created: row.created,
         });
     }
@@ -918,4 +921,122 @@ pub(crate) async fn operations(
         "per_page": query.per_page,
         "total":  total.0
     })))
+}
+
+async fn get_source(state: &AppView, uri: &str) -> Result<Value, AppError> {
+    let source = if let Ok((_receiver, nsid, _rkey)) = crate::lexicon::resolve_uri(uri) {
+        match nsid {
+            NSID_POST => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([
+                        (Post::Table, Post::Title),
+                        (Post::Table, Post::IsDisabled),
+                        (Post::Table, Post::ReasonsForDisabled),
+                    ])
+                    .from(Post::Table)
+                    .and_where(Expr::col(Post::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String, bool, String) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "title": row.0,
+                    "is_disabled": row.1,
+                    "reasons_for_disabled": row.2
+                })
+            }
+            NSID_COMMENT => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([
+                        (Comment::Table, Comment::Text),
+                        (Comment::Table, Comment::Post),
+                        (Comment::Table, Comment::IsDisabled),
+                        (Comment::Table, Comment::ReasonsForDisabled),
+                    ])
+                    .from(Comment::Table)
+                    .and_where(Expr::col(Comment::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String, String, bool, String) = query_as_with(&sql, values.clone())
+                    .fetch_one(&state.db)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "text": row.0,
+                    "post": row.1,
+                    "is_disabled": row.2,
+                    "reasons_for_disabled": row.3,
+                })
+            }
+            NSID_REPLY => {
+                let (sql, values) = sea_query::Query::select()
+                    .columns([
+                        (Reply::Table, Reply::Text),
+                        (Reply::Table, Reply::Post),
+                        (Reply::Table, Reply::Comment),
+                        (Reply::Table, Reply::To),
+                        (Reply::Table, Reply::IsDisabled),
+                        (Reply::Table, Reply::ReasonsForDisabled),
+                    ])
+                    .from(Reply::Table)
+                    .and_where(Expr::col(Reply::Uri).eq(uri))
+                    .build_sqlx(PostgresQueryBuilder);
+                let row: (String, String, String, String, bool, String) =
+                    query_as_with(&sql, values.clone())
+                        .fetch_one(&state.db)
+                        .await
+                        .map_err(|e| {
+                            debug!("exec sql failed: {e}");
+                            AppError::NotFound
+                        })?;
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                    "text": row.0,
+                    "post": row.1,
+                    "comment": row.2,
+                    "to": row.3,
+                    "is_disabled": row.4,
+                    "reasons_for_disabled": row.5,
+                })
+            }
+            _ => {
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                })
+            }
+        }
+    } else {
+        let (nsid, uri) = uri.split_once("/").unwrap_or(("", ""));
+        match nsid {
+            NSID_SECTION => {
+                let row = Section::select_by_id(&state.db, uri.parse()?)
+                    .await
+                    .map_err(|e| {
+                        debug!("exec sql failed: {e}");
+                        AppError::NotFound
+                    })?;
+                json!(row)
+            }
+            _ => {
+                json!({
+                    "nsid": nsid,
+                    "uri": uri,
+                })
+            }
+        }
+    };
+
+    Ok(source)
 }
