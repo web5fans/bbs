@@ -5,7 +5,10 @@ use serde_json::Value;
 use sqlx::{Executor, query};
 
 use crate::{
-    AppView, atproto::NSID_POST, lexicon::post::Post, relayer::subscription::CommitHandler,
+    AppView,
+    atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_REPLY},
+    lexicon::{comment::Comment, like::Like, post::Post, reply::Reply},
+    relayer::subscription::CommitHandler,
 };
 
 pub(crate) mod stream;
@@ -22,6 +25,9 @@ impl CommitHandler for AppView {
         .await?;
 
         let mut posts_to_delete = vec![];
+        let mut comments_to_delete = vec![];
+        let mut replies_to_delete = vec![];
+        let mut likes_to_delete = vec![];
 
         for op in &commit.ops {
             info!("Operation: {:?}", op);
@@ -32,10 +38,9 @@ impl CommitHandler for AppView {
             let mut s = op.path.split('/');
             let collection = s.next().expect("op.path is empty");
 
-            let rkey = s.next().expect("no record key");
             let repo_str = commit.repo.as_str();
             let uri = format!("at://{}/{}", repo_str, op.path);
-            if let Ok(Some(record)) = repo.get_raw::<Value>(rkey).await {
+            if let Ok(Some(record)) = repo.get_raw::<Value>(&op.path).await {
                 debug!("Record: {:?}", record);
                 match collection {
                     NSID_POST => match op.action.as_str() {
@@ -54,6 +59,54 @@ impl CommitHandler for AppView {
                         }
                         _ => continue,
                     },
+                    NSID_COMMENT => match op.action.as_str() {
+                        "create" | "update" => {
+                            let cid =
+                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
+                            info!("{} comment: {:?}", op.action, &record);
+                            Comment::insert(&self.db, repo_str, &record, &uri, &cid)
+                                .await
+                                .map_err(|e| error!("Comment::insert failed: {e}"))
+                                .ok();
+                        }
+                        "delete" => {
+                            comments_to_delete.push(uri.clone());
+                            info!("Marked comment for deletion: {}", uri);
+                        }
+                        _ => continue,
+                    },
+                    NSID_REPLY => match op.action.as_str() {
+                        "create" | "update" => {
+                            let cid =
+                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
+                            info!("{} reply: {:?}", op.action, &record);
+                            Reply::insert(&self.db, repo_str, &record, &uri, &cid)
+                                .await
+                                .map_err(|e| error!("Reply::insert failed: {e}"))
+                                .ok();
+                        }
+                        "delete" => {
+                            replies_to_delete.push(uri.clone());
+                            info!("Marked reply for deletion: {}", uri);
+                        }
+                        _ => continue,
+                    },
+                    NSID_LIKE => match op.action.as_str() {
+                        "create" | "update" => {
+                            let cid =
+                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
+                            info!("{} like: {:?}", op.action, &record);
+                            Like::insert(&self.db, repo_str, &record, &uri, &cid)
+                                .await
+                                .map_err(|e| error!("Like::insert failed: {e}"))
+                                .ok();
+                        }
+                        "delete" => {
+                            likes_to_delete.push(uri.clone());
+                            info!("Marked like for deletion: {}", uri);
+                        }
+                        _ => continue,
+                    },
                     _ => continue,
                 }
             } else {
@@ -66,6 +119,51 @@ impl CommitHandler for AppView {
                 .execute(query(&format!(
                     "DELETE FROM post WHERE uri IN ({})",
                     posts_to_delete
+                        .iter()
+                        .map(|uri| format!("'{uri}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
+                .await
+                .map_err(|e| error!("sql execute failed: {e}"))
+                .ok();
+        }
+
+        if !comments_to_delete.is_empty() {
+            self.db
+                .execute(query(&format!(
+                    "DELETE FROM comment WHERE uri IN ({})",
+                    comments_to_delete
+                        .iter()
+                        .map(|uri| format!("'{uri}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
+                .await
+                .map_err(|e| error!("sql execute failed: {e}"))
+                .ok();
+        }
+
+        if !replies_to_delete.is_empty() {
+            self.db
+                .execute(query(&format!(
+                    "DELETE FROM reply WHERE uri IN ({})",
+                    replies_to_delete
+                        .iter()
+                        .map(|uri| format!("'{uri}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
+                .await
+                .map_err(|e| error!("sql execute failed: {e}"))
+                .ok();
+        }
+
+        if !likes_to_delete.is_empty() {
+            self.db
+                .execute(query(&format!(
+                    "DELETE FROM like WHERE uri IN ({})",
+                    likes_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()

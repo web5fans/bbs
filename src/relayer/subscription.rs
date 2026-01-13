@@ -69,7 +69,11 @@ impl Subscription for RepoSubscription {
     async fn next(&mut self) -> Option<Result<Frame>> {
         match self.stream.next().await {
             Some(Ok(Message::Binary(data))) => Some(Frame::try_from(data.iter().as_slice())),
-            Some(Ok(_)) | None => None,
+            Some(Ok(msg)) => {
+                debug!("unknown message: {msg:?}");
+                None
+            }
+            None => None,
             Some(Err(e)) => Some(Err(eyre!(e))),
         }
     }
