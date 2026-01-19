@@ -32,7 +32,7 @@ impl CommitHandler for AppView {
         for op in &commit.ops {
             info!("Operation: {:?}", op);
             match op.action.as_str() {
-                "create" | "delete" => (),
+                "create" | "update" | "delete" => (),
                 _ => continue,
             }
             let mut s = op.path.split('/');
