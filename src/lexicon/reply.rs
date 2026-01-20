@@ -243,6 +243,7 @@ pub struct ReplySampleRow {
     pub section_id: i32,
     pub post: String,
     pub comment: String,
+    pub comment_text: String,
     pub to: String,
     pub text: String,
     pub is_disabled: bool,

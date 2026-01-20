@@ -111,6 +111,7 @@ async fn page_reply(state: &AppView, query: ReplyPageQuery) -> Result<Value, App
             (Reply::Table, Reply::Updated),
             (Reply::Table, Reply::Created),
         ])
+        .expr(Expr::cust("(select \"comment\".\"text\" from \"comment\" where \"comment\".\"uri\" = \"reply\".\"comment\") as comment_text"))
         .from(Reply::Table)
         .and_where(Expr::col((Reply::Table, Reply::IsDisabled)).eq(query.is_disabled))
         .and_where_option(
@@ -145,6 +146,7 @@ async fn page_reply(state: &AppView, query: ReplyPageQuery) -> Result<Value, App
             "section_id": row.section_id,
             "post": row.post,
             "comment": row.comment,
+            "comment_text": row.comment_text,
             "to": row.to,
             "text": row.text,
             "is_disabled": row.is_disabled,
