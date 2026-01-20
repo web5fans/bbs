@@ -236,6 +236,23 @@ impl Reply {
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct ReplySampleRow {
+    pub uri: String,
+    pub cid: String,
+    pub repo: String,
+    pub section_id: i32,
+    pub post: String,
+    pub comment: String,
+    pub to: String,
+    pub text: String,
+    pub is_disabled: bool,
+    pub reasons_for_disabled: Option<String>,
+    pub edited: Option<DateTime<Local>>,
+    pub updated: DateTime<Local>,
+    pub created: DateTime<Local>,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
 pub struct ReplyRow {
     pub uri: String,
     pub cid: String,

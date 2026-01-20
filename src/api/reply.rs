@@ -18,7 +18,7 @@ use crate::{
     error::AppError,
     lexicon::{
         administrator::Administrator,
-        reply::{Reply, ReplyRow, ReplyView},
+        reply::{Reply, ReplyRow, ReplySampleRow, ReplyView},
         section::Section,
     },
     micro_pay,
@@ -55,6 +55,134 @@ pub(crate) async fn list(
 ) -> Result<impl IntoResponse, AppError> {
     let result = list_reply(&state, query).await?;
     Ok(ok(result))
+}
+
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+#[serde(default)]
+pub(crate) struct ReplyPageQuery {
+    pub section_id: Option<String>,
+    pub q: Option<String>,
+    pub is_disabled: bool,
+    #[validate(range(min = 1))]
+    pub page: u64,
+    #[validate(range(min = 1))]
+    pub per_page: u64,
+}
+
+impl Default for ReplyPageQuery {
+    fn default() -> Self {
+        Self {
+            section_id: Default::default(),
+            is_disabled: false,
+            page: 1,
+            per_page: 20,
+            q: Default::default(),
+        }
+    }
+}
+
+#[utoipa::path(post, path = "/api/reply/page")]
+pub(crate) async fn page(
+    State(state): State<AppView>,
+    Json(query): Json<ReplyPageQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    query
+        .validate()
+        .map_err(|e| AppError::ValidateFailed(e.to_string()))?;
+    let result = page_reply(&state, query).await?;
+    Ok(ok(result))
+}
+
+async fn page_reply(state: &AppView, query: ReplyPageQuery) -> Result<Value, AppError> {
+    let offset = query.per_page * (query.page - 1);
+    let (sql, values) = sea_query::Query::select()
+        .columns([
+            (Reply::Table, Reply::Uri),
+            (Reply::Table, Reply::Cid),
+            (Reply::Table, Reply::Repo),
+            (Reply::Table, Reply::SectionId),
+            (Reply::Table, Reply::Post),
+            (Reply::Table, Reply::Comment),
+            (Reply::Table, Reply::To),
+            (Reply::Table, Reply::Text),
+            (Reply::Table, Reply::IsDisabled),
+            (Reply::Table, Reply::ReasonsForDisabled),
+            (Reply::Table, Reply::Edited),
+            (Reply::Table, Reply::Updated),
+            (Reply::Table, Reply::Created),
+        ])
+        .from(Reply::Table)
+        .and_where(Expr::col((Reply::Table, Reply::IsDisabled)).eq(query.is_disabled))
+        .and_where_option(
+            query
+                .section_id
+                .as_ref()
+                .and_then(|id| id.parse::<i32>().ok())
+                .map(|section| Expr::col((Reply::Table, Reply::SectionId)).eq(section)),
+        )
+        .and_where_option(
+            query
+                .q
+                .as_ref()
+                .map(|q| Expr::col((Reply::Table, Reply::Text)).like(format!("%{q}%"))),
+        )
+        .order_by(Reply::Created, Order::Asc)
+        .offset(offset)
+        .limit(query.per_page)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows: Vec<ReplySampleRow> = query_as_with(&sql, values.clone())
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    let mut views = vec![];
+    for row in rows {
+        views.push(json!({
+            "uri": row.uri,
+            "cid": row.cid,
+            "repo": row.repo,
+            "section_id": row.section_id,
+            "post": row.post,
+            "comment": row.comment,
+            "to": row.to,
+            "text": row.text,
+            "is_disabled": row.is_disabled,
+            "reasons_for_disabled": row.reasons_for_disabled,
+            "edited": row.edited,
+            "updated": row.updated,
+            "created": row.created,
+        }));
+    }
+
+    let (sql, values) = sea_query::Query::select()
+        .expr(Expr::col((Reply::Table, Reply::Uri)).count_distinct())
+        .from(Reply::Table)
+        .and_where(Expr::col((Reply::Table, Reply::IsDisabled)).eq(query.is_disabled))
+        .and_where_option(
+            query
+                .section_id
+                .as_ref()
+                .and_then(|id| id.parse::<i32>().ok())
+                .map(|section| Expr::col((Reply::Table, Reply::SectionId)).eq(section)),
+        )
+        .and_where_option(
+            query
+                .q
+                .map(|q| Expr::col((Reply::Table, Reply::Text)).like(format!("%{q}%"))),
+        )
+        .build_sqlx(PostgresQueryBuilder);
+    let total: (i64,) = query_as_with(&sql, values.clone())
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+
+    Ok(json!({
+        "replies": views,
+        "page": query.page,
+        "per_page": query.per_page,
+        "total":  total.0
+    }))
 }
 
 pub(crate) async fn list_reply(state: &AppView, query: ReplyQuery) -> Result<Value, AppError> {

@@ -149,6 +149,7 @@ async fn main() -> Result<()> {
         .route("/api/post/detail_draft", get(api::post::detail_draft))
         .route("/api/comment/list", post(api::comment::list))
         .route("/api/reply/list", post(api::reply::list))
+        .route("/api/reply/page", post(api::reply::page))
         .route("/api/repo/profile", get(api::repo::profile))
         .route("/api/repo/login_info", get(api::repo::login_info))
         .route("/api/like/list", post(api::like::list))
