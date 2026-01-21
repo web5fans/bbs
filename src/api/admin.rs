@@ -130,7 +130,7 @@ pub(crate) async fn update_tag(
                     body.params.is_top,
                     body.params.is_announcement,
                     body.params.is_disabled,
-                    body.params.reasons_for_disabled,
+                    body.params.reasons_for_disabled.clone(),
                 )
                 .await?;
             }
@@ -139,7 +139,7 @@ pub(crate) async fn update_tag(
                     &state.db,
                     &body.params.uri,
                     body.params.is_disabled,
-                    body.params.reasons_for_disabled,
+                    body.params.reasons_for_disabled.clone(),
                 )
                 .await?;
             }
@@ -148,7 +148,7 @@ pub(crate) async fn update_tag(
                     &state.db,
                     &body.params.uri,
                     body.params.is_disabled,
-                    body.params.reasons_for_disabled,
+                    body.params.reasons_for_disabled.clone(),
                 )
                 .await?;
             }
@@ -187,7 +187,7 @@ pub(crate) async fn update_tag(
                         _ => return Err(eyre!("nsid is not allowed!").into()),
                     },
                     action: "隐藏帖子".to_string(),
-                    message: body.params.uri.to_string(),
+                    message: body.params.reasons_for_disabled.unwrap_or_default(),
                     target: body.params.uri.to_string(),
                     created: chrono::Local::now(),
                 },
