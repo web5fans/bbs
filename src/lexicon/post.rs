@@ -373,7 +373,7 @@ impl PostDraftView {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct PostView {
     pub uri: String,
     pub cid: String,

@@ -146,26 +146,23 @@ pub(crate) async fn update(
         }
     }
 
-    match record_type {
-        NSID_POST | NSID_REPLY | NSID_COMMENT | NSID_LIKE => {
-            let section_id = new_record.value["section_id"]
-                .as_str()
-                .and_then(|s| s.parse::<i32>().ok())
-                .ok_or_eyre("error in section_id")?;
-            let section: SectionRow = Section::select_by_id(&state.db, section_id)
-                .await
-                .map_err(|e| eyre!("error in section_id: {e}"))?;
+    if record_type == NSID_POST {
+        let section_id = new_record.value["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
+        let section: SectionRow = Section::select_by_id(&state.db, section_id)
+            .await
+            .map_err(|e| eyre!("error in section_id: {e}"))?;
 
-            let admins = Administrator::all_did(&state.db).await;
+        let admins = Administrator::all_did(&state.db).await;
 
-            if section.permission > 0
-                && section.owner != Some(new_record.repo.clone())
-                && !admins.contains(&new_record.repo)
-            {
-                return Err(eyre!("Operation is not allowed!").into());
-            }
+        if section.permission > 0
+            && section.owner != Some(new_record.repo.clone())
+            && !admins.contains(&new_record.repo)
+        {
+            return Err(eyre!("Operation is not allowed!").into());
         }
-        _ => {}
     }
 
     let result = direct_writes(

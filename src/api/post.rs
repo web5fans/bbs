@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use color_eyre::eyre::eyre;
 use common_x::restful::{
@@ -14,6 +14,7 @@ use sea_query_sqlx::SqlxBinder;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::{Executor, query_as_with, query_with};
+use tokio::sync::RwLock;
 use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
@@ -81,10 +82,12 @@ pub(crate) async fn list(
                 .cursor
                 .and_then(|cursor| cursor.parse::<i64>().ok())
                 .map(|cursor| {
-                    Expr::col((Post::Table, Post::Updated)).binary(
-                        BinOper::SmallerThan,
-                        Func::cust(ToTimestamp).args([Expr::val(cursor)]),
-                    )
+                    Expr::col((Post::Table, Post::Updated))
+                        .binary(
+                            BinOper::SmallerThan,
+                            Func::cust(ToTimestamp).args([Expr::val(cursor)]),
+                        )
+                        .and(Expr::col((Post::Table, Post::IsTop)).eq(false))
                 }),
         )
         .and_where_option(query.q.map(|q| {
@@ -92,6 +95,17 @@ pub(crate) async fn list(
                 .into_column_ref()
                 .like(format!("%{q}%"))
         }))
+        .and_where(if let Some(viewer) = &query.viewer {
+            Expr::col((Post::Table, Post::IsDisabled))
+                .eq(false)
+                .or(Expr::col((Post::Table, Post::Repo)).eq(viewer))
+                .or(Expr::col((Section::Table, Section::Owner)).eq(viewer))
+                .or(Expr::cust(format!(
+                    "(select count(uri) from administrator where uri = {viewer}) > 0"
+                )))
+        } else {
+            Expr::col((Post::Table, Post::IsDisabled)).eq(false)
+        })
         .order_by_columns([
             ((Post::Table, Post::IsTop), Order::Desc),
             ((Post::Table, Post::Updated), Order::Desc),
@@ -104,24 +118,13 @@ pub(crate) async fn list(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
-    let sections = Section::all(&state.db).await?;
-
-    let admins = Administrator::all_did(&state.db).await;
-    let mut views = vec![];
+    let views = Arc::new(RwLock::new(vec![]));
+    let mut handles = vec![];
     for row in rows {
-        let author = build_author(&state, &row.repo).await;
-
-        let display = if let Some(viewer) = &query.viewer {
-            &row.repo == viewer
-                || sections
-                    .get(&row.section_id)
-                    .is_some_and(|section| section.owner.as_ref() == Some(viewer))
-                || admins.contains(viewer)
-        } else {
-            false
-        };
-
-        if !row.is_disabled || display {
+        let state = state.clone();
+        let views = views.clone();
+        handles.push(tokio::spawn(async move {
+            let author = build_author(&state, &row.repo).await;
             let tip_count = micro_pay::payment_completed_total(
                 &state.pay_url,
                 &format!("{}/{}", NSID_POST, row.uri),
@@ -129,9 +132,21 @@ pub(crate) async fn list(
             .await
             .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
             .unwrap_or(0);
-            views.push(PostView::build(row, author, tip_count.to_string()));
-        }
+            views
+                .write()
+                .await
+                .push(PostView::build(row.clone(), author, tip_count.to_string()));
+        }));
     }
+    for handle in handles {
+        handle.await?;
+    }
+
+    let mut views = views.read().await.clone();
+
+    views.sort_by(|a, b| b.updated.cmp(&a.updated));
+    views.sort_by(|a, b| b.is_top.cmp(&a.is_top));
+
     let cursor = views.last().map(|r| r.updated.timestamp());
     let result = if let Some(cursor) = cursor {
         json!({
@@ -206,10 +221,7 @@ pub(crate) async fn page(
                 .into_column_ref()
                 .like(format!("%{q}%"))
         }))
-        .order_by_columns([
-            ((Post::Table, Post::IsTop), Order::Desc),
-            ((Post::Table, Post::Updated), Order::Desc),
-        ])
+        .order_by_columns([((Post::Table, Post::Updated), Order::Desc)])
         .offset(offset)
         .limit(query.per_page)
         .build_sqlx(PostgresQueryBuilder);
@@ -219,17 +231,28 @@ pub(crate) async fn page(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
-    let mut views = vec![];
+    let views = Arc::new(RwLock::new(vec![]));
+    let mut handles = vec![];
     for row in rows {
-        let author = build_author(&state, &row.repo).await;
-        let tip_count = micro_pay::payment_completed_total(
-            &state.pay_url,
-            &format!("{}/{}", NSID_POST, row.uri),
-        )
-        .await
-        .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
-        .unwrap_or(0);
-        views.push(PostView::build(row, author, tip_count.to_string()));
+        let state = state.clone();
+        let views = views.clone();
+        handles.push(tokio::spawn(async move {
+            let author = build_author(&state, &row.repo).await;
+            let tip_count = micro_pay::payment_completed_total(
+                &state.pay_url,
+                &format!("{}/{}", NSID_POST, row.uri),
+            )
+            .await
+            .map(|r| r.get("total").and_then(|r| r.as_i64()).unwrap_or(0))
+            .unwrap_or(0);
+            views
+                .write()
+                .await
+                .push(PostView::build(row.clone(), author, tip_count.to_string()));
+        }));
+    }
+    for handle in handles {
+        handle.await?;
     }
 
     let (sql, values) = sea_query::Query::select()
@@ -261,8 +284,11 @@ pub(crate) async fn page(
         .await
         .map_err(|e| eyre!("exec sql failed: {e}"))?;
 
+    let mut views = views.read().await.clone();
+    views.sort_by(|a, b| b.updated.cmp(&a.updated));
+    views.sort_by(|a, b| b.is_top.cmp(&a.is_top));
     Ok(ok(json!({
-        "posts": views,
+        "posts": *views,
         "page": query.page,
         "per_page": query.per_page,
         "total":  total.0

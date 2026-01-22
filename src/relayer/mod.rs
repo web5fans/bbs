@@ -42,6 +42,7 @@ impl CommitHandler for AppView {
             let uri = format!("at://{}/{}", repo_str, op.path);
             if let Ok(Some(record)) = repo.get_raw::<Value>(&op.path).await {
                 debug!("Record: {:?}", record);
+                continue;
                 match collection {
                     NSID_POST => match op.action.as_str() {
                         "create" | "update" => {
