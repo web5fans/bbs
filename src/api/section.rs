@@ -33,25 +33,23 @@ pub(crate) async fn list(
     State(state): State<AppView>,
     Query(query): Query<SectionQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (sql, values) = Section::build_select()
-        .and_where(if let Some(repo) = query.repo {
-            Expr::col((Section::Table, Section::Permission))
-                .eq(0)
-                .or(Expr::col((Section::Table, Section::Owner)).eq(&repo))
-                .or(Expr::Custom(
-                    format!("'{repo}' = ANY(coalesce(section.administrators, array[]::text[]))")
-                        .into(),
-                ))
-        } else {
-            Expr::col((Section::Table, Section::Permission)).eq(0)
-        })
-        .and_where_option(
-            query.is_disabled.map(|is_disabled| {
+    let (sql, values) =
+        Section::build_select()
+            .and_where(if let Some(repo) = query.repo {
+                Expr::col((Section::Table, Section::Permission))
+                    .eq(0)
+                    .or(Expr::col((Section::Table, Section::Owner)).eq(&repo))
+                    .or(Expr::cust(format!(
+                        "(select count(did) from administrator where did = '{repo}') > 0"
+                    )))
+            } else {
+                Expr::col((Section::Table, Section::Permission)).eq(0)
+            })
+            .and_where_option(query.is_disabled.map(|is_disabled| {
                 Expr::col((Section::Table, Section::IsDisabled)).eq(is_disabled)
-            }),
-        )
-        .order_by(Section::Id, Order::Asc)
-        .build_sqlx(PostgresQueryBuilder);
+            }))
+            .order_by(Section::Id, Order::Asc)
+            .build_sqlx(PostgresQueryBuilder);
 
     let rows: Vec<SectionRowSample> = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_all(&state.db)
