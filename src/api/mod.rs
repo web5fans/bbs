@@ -1,4 +1,7 @@
-use color_eyre::eyre::{OptionExt, eyre};
+use color_eyre::{
+    Result,
+    eyre::{OptionExt, eyre},
+};
 use k256::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use sea_query::{BinOper, Expr, ExprTrait, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
@@ -20,6 +23,7 @@ use crate::{
         comment::Comment,
         like::Like,
         post::Post,
+        profile::Profile,
         section::{Section, SectionRowSample},
     },
 };
@@ -171,12 +175,9 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
         .unwrap_or((0,));
 
     // Get profile
-    let mut author = get_record(&state.pds, repo, NSID_PROFILE, "self")
-        .await
-        .and_then(|row| row.get("value").cloned().ok_or_eyre("NOT_FOUND"))
-        .unwrap_or(json!({
-            "did": repo
-        }));
+    let mut author = get_profile(state, repo).await.unwrap_or(json!({
+        "did": repo
+    }));
     if let Ok(ckb_addr) = get_ckb_addr_by_did(&state.ckb_client, &state.ckb_net, repo).await {
         author["ckb_addr"] = Value::String(ckb_addr);
     }
@@ -218,6 +219,25 @@ pub(crate) async fn build_author(state: &AppView, repo: &str) -> Value {
     }
 
     author
+}
+
+async fn get_profile(state: &AppView, repo: &str) -> Result<Value> {
+    if let Ok(profile_row) = Profile::get(&state.db, repo).await {
+        Ok(profile_row.record)
+    } else {
+        let record = get_record(&state.pds, repo, NSID_PROFILE, "self").await?;
+        let value = record.get("value").ok_or_eyre("get profile failed")?;
+        let uri = record
+            .get("uri")
+            .and_then(|uri| uri.as_str())
+            .ok_or_eyre("get profile failed")?;
+        let cid = record
+            .get("cid")
+            .and_then(|cid| cid.as_str())
+            .ok_or_eyre("get profile failed")?;
+        Profile::insert(&state.db, repo, value, uri, cid).await?;
+        Ok(record)
+    }
 }
 
 pub trait SignedParam: Default + ToSchema + Serialize + Validate {

@@ -11,6 +11,7 @@ pub(crate) mod section;
 pub(crate) mod status;
 pub(crate) mod tip;
 pub(crate) mod whitelist;
+pub(crate) mod profile;
 
 pub fn resolve_uri(uri: &str) -> Result<(&str, &str, &str)> {
     let uri_split = uri.split('/').collect::<Vec<&str>>();

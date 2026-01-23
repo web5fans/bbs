@@ -6,8 +6,8 @@ use sqlx::{Executor, query};
 
 use crate::{
     AppView,
-    atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_REPLY},
-    lexicon::{comment::Comment, like::Like, post::Post, reply::Reply},
+    atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_PROFILE, NSID_REPLY},
+    lexicon::{comment::Comment, like::Like, post::Post, profile::Profile, reply::Reply},
     relayer::subscription::CommitHandler,
 };
 
@@ -24,10 +24,11 @@ impl CommitHandler for AppView {
         )
         .await?;
 
-        let mut posts_to_delete = vec![];
-        let mut comments_to_delete = vec![];
-        let mut replies_to_delete = vec![];
-        let mut likes_to_delete = vec![];
+        let mut profile_to_delete = vec![];
+        let mut post_to_delete = vec![];
+        let mut comment_to_delete = vec![];
+        let mut reply_to_delete = vec![];
+        let mut like_to_delete = vec![];
 
         for op in &commit.ops {
             info!("Operation: {:?}", op);
@@ -42,8 +43,23 @@ impl CommitHandler for AppView {
             let uri = format!("at://{}/{}", repo_str, op.path);
             if let Ok(Some(record)) = repo.get_raw::<Value>(&op.path).await {
                 debug!("Record: {:?}", record);
-                continue;
                 match collection {
+                    NSID_PROFILE => match op.action.as_str() {
+                        "create" | "update" => {
+                            let cid =
+                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
+                            info!("{} profile: {:?}", op.action, &record);
+                            Profile::insert(&self.db, repo_str, &record, &uri, &cid)
+                                .await
+                                .map_err(|e| error!("Profile::insert failed: {e}"))
+                                .ok();
+                        }
+                        "delete" => {
+                            profile_to_delete.push(uri.clone());
+                            info!("Marked profile for deletion: {}", uri);
+                        }
+                        _ => continue,
+                    },
                     NSID_POST => match op.action.as_str() {
                         "create" | "update" => {
                             let cid =
@@ -55,7 +71,7 @@ impl CommitHandler for AppView {
                                 .ok();
                         }
                         "delete" => {
-                            posts_to_delete.push(uri.clone());
+                            post_to_delete.push(uri.clone());
                             info!("Marked post for deletion: {}", uri);
                         }
                         _ => continue,
@@ -71,7 +87,7 @@ impl CommitHandler for AppView {
                                 .ok();
                         }
                         "delete" => {
-                            comments_to_delete.push(uri.clone());
+                            comment_to_delete.push(uri.clone());
                             info!("Marked comment for deletion: {}", uri);
                         }
                         _ => continue,
@@ -87,7 +103,7 @@ impl CommitHandler for AppView {
                                 .ok();
                         }
                         "delete" => {
-                            replies_to_delete.push(uri.clone());
+                            reply_to_delete.push(uri.clone());
                             info!("Marked reply for deletion: {}", uri);
                         }
                         _ => continue,
@@ -103,7 +119,7 @@ impl CommitHandler for AppView {
                                 .ok();
                         }
                         "delete" => {
-                            likes_to_delete.push(uri.clone());
+                            like_to_delete.push(uri.clone());
                             info!("Marked like for deletion: {}", uri);
                         }
                         _ => continue,
@@ -115,11 +131,26 @@ impl CommitHandler for AppView {
             }
         }
 
-        if !posts_to_delete.is_empty() {
+        if !profile_to_delete.is_empty() {
+            self.db
+                .execute(query(&format!(
+                    "DELETE FROM profile WHERE uri IN ({})",
+                    post_to_delete
+                        .iter()
+                        .map(|uri| format!("'{uri}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
+                .await
+                .map_err(|e| error!("sql execute failed: {e}"))
+                .ok();
+        }
+
+        if !post_to_delete.is_empty() {
             self.db
                 .execute(query(&format!(
                     "DELETE FROM post WHERE uri IN ({})",
-                    posts_to_delete
+                    post_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()
@@ -130,11 +161,11 @@ impl CommitHandler for AppView {
                 .ok();
         }
 
-        if !comments_to_delete.is_empty() {
+        if !comment_to_delete.is_empty() {
             self.db
                 .execute(query(&format!(
                     "DELETE FROM comment WHERE uri IN ({})",
-                    comments_to_delete
+                    comment_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()
@@ -145,11 +176,11 @@ impl CommitHandler for AppView {
                 .ok();
         }
 
-        if !replies_to_delete.is_empty() {
+        if !reply_to_delete.is_empty() {
             self.db
                 .execute(query(&format!(
                     "DELETE FROM reply WHERE uri IN ({})",
-                    replies_to_delete
+                    reply_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()
@@ -160,11 +191,11 @@ impl CommitHandler for AppView {
                 .ok();
         }
 
-        if !likes_to_delete.is_empty() {
+        if !like_to_delete.is_empty() {
             self.db
                 .execute(query(&format!(
                     "DELETE FROM like WHERE uri IN ({})",
-                    likes_to_delete
+                    like_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()

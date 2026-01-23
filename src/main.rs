@@ -32,6 +32,7 @@ use crate::lexicon::like::Like;
 use crate::lexicon::notify::Notify;
 use crate::lexicon::operation::Operation;
 use crate::lexicon::post::Post;
+use crate::lexicon::profile::Profile;
 use crate::lexicon::reply::Reply;
 use crate::lexicon::section::Section;
 use crate::lexicon::status::Status;
@@ -81,6 +82,7 @@ async fn main() -> Result<()> {
     Notify::init(&db).await?;
     Administrator::init(&db).await?;
     Operation::init(&db).await?;
+    Profile::init(&db).await?;
 
     let bbs = AppView {
         db,
