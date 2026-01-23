@@ -15,7 +15,15 @@ use crate::{
     AppView,
     atproto::{NSID_COMMENT, NSID_LIKE, NSID_POST, NSID_REPLY, direct_writes},
     error::AppError,
-    lexicon::{comment::Comment, like::Like, post::Post, reply::Reply, whitelist::Whitelist},
+    lexicon::{
+        administrator::Administrator,
+        comment::Comment,
+        like::Like,
+        post::Post,
+        reply::Reply,
+        section::{Section, SectionRow},
+        whitelist::Whitelist,
+    },
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, ToSchema)]
@@ -41,6 +49,38 @@ pub(crate) async fn create(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
+    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+        match record_type {
+            NSID_POST | NSID_REPLY | NSID_COMMENT => {
+                return Err(eyre!("Operation is not allowed!").into());
+            }
+            _ => {}
+        }
+    }
+
+    if record_type == NSID_POST {
+        let section_id = new_record.value["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
+        let section: SectionRow = Section::select_by_id(&state.db, section_id)
+            .await
+            .map_err(|e| eyre!("error in section_id: {e}"))?;
+
+        let is_announcement = new_record.value["is_announcement"]
+            .as_bool()
+            .unwrap_or(false);
+        let is_top = new_record.value["is_top"].as_bool().unwrap_or(false);
+
+        let admins = Administrator::all_did(&state.db).await;
+
+        if (section.permission > 0 || is_announcement || is_top)
+            && section.owner != Some(new_record.repo.clone())
+            && !admins.contains(&new_record.repo)
+        {
+            return Err(eyre!("Operation is not allowed!").into());
+        }
+    }
 
     let result = direct_writes(
         &state.pds,
@@ -97,6 +137,38 @@ pub(crate) async fn update(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
+    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+        match record_type {
+            NSID_POST | NSID_REPLY | NSID_COMMENT => {
+                return Err(eyre!("Operation is not allowed!").into());
+            }
+            _ => {}
+        }
+    }
+
+    if record_type == NSID_POST {
+        let section_id = new_record.value["section_id"]
+            .as_str()
+            .and_then(|s| s.parse::<i32>().ok())
+            .ok_or_eyre("error in section_id")?;
+        let section: SectionRow = Section::select_by_id(&state.db, section_id)
+            .await
+            .map_err(|e| eyre!("error in section_id: {e}"))?;
+
+        let is_announcement = new_record.value["is_announcement"]
+            .as_bool()
+            .unwrap_or(false);
+        let is_top = new_record.value["is_top"].as_bool().unwrap_or(false);
+
+        let admins = Administrator::all_did(&state.db).await;
+
+        if (section.permission > 0 || is_announcement || is_top)
+            && section.owner != Some(new_record.repo.clone())
+            && !admins.contains(&new_record.repo)
+        {
+            return Err(eyre!("Operation is not allowed!").into());
+        }
+    }
 
     let result = direct_writes(
         &state.pds,
