@@ -1,12 +1,20 @@
 use chrono::{DateTime, Local};
-use color_eyre::{Result, eyre::OptionExt};
+use color_eyre::{
+    Result,
+    eyre::{OptionExt, eyre},
+};
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{Executor, Pool, Postgres, query, query_with};
 
-use crate::lexicon::{comment::CommentRow, section::Section};
+use crate::lexicon::{
+    administrator::Administrator,
+    comment::CommentRow,
+    section::{Section, SectionRow},
+    whitelist::Whitelist,
+};
 
 #[derive(Iden)]
 pub enum Post {
@@ -136,6 +144,24 @@ impl Post {
         let is_draft = post["is_draft"].as_bool().unwrap_or(false);
         let is_announcement = post["is_announcement"].as_bool().unwrap_or(false);
         let is_top = post["is_top"].as_bool().unwrap_or(false);
+
+        // check permission
+        {
+            if !Whitelist::select_by_did(db, repo).await {
+                return Err(eyre!("Operation is not allowed!"));
+            }
+            let section: SectionRow = Section::select_by_id(db, section_id)
+                .await
+                .map_err(|e| eyre!("error in section_id: {e}"))?;
+            let admins = Administrator::all_did(db).await;
+            if (section.permission > 0 || is_announcement || is_top)
+                && section.owner != Some(repo.to_string())
+                && !admins.contains(&repo.to_string())
+            {
+                return Err(eyre!("Operation is not allowed!"));
+            }
+        }
+
         let (sql, values) = sea_query::Query::insert()
             .into_table(Self::Table)
             .columns([

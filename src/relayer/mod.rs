@@ -46,10 +46,8 @@ impl CommitHandler for AppView {
                 match collection {
                     NSID_PROFILE => match op.action.as_str() {
                         "create" | "update" => {
-                            let cid =
-                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
                             info!("{} profile: {:?}", op.action, &record);
-                            Profile::insert(&self.db, repo_str, &record, &uri, &cid)
+                            Profile::insert(&self.db, repo_str, record)
                                 .await
                                 .map_err(|e| error!("Profile::insert failed: {e}"))
                                 .ok();

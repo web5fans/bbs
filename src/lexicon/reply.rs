@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local};
-use color_eyre::{Result, eyre::OptionExt};
+use color_eyre::{Result, eyre::{OptionExt, eyre}};
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -9,7 +9,7 @@ use sqlx::{Executor, Pool, Postgres, query, query_with};
 use crate::lexicon::{
     notify::{Notify, NotifyRow, NotifyType},
     post::Post,
-    resolve_uri,
+    resolve_uri, whitelist::Whitelist,
 };
 
 #[derive(Iden)]
@@ -86,6 +86,12 @@ impl Reply {
         uri: &str,
         cid: &str,
     ) -> Result<()> {
+        // check permission
+        {
+            if !Whitelist::select_by_did(db, repo).await {
+                return Err(eyre!("Operation is not allowed!"));
+            }
+        }
         let section_id = reply["section_id"]
             .as_str()
             .and_then(|s| s.parse::<i32>().ok())

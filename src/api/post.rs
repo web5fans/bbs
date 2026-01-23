@@ -101,7 +101,7 @@ pub(crate) async fn list(
                 .or(Expr::col((Post::Table, Post::Repo)).eq(viewer))
                 .or(Expr::col((Section::Table, Section::Owner)).eq(viewer))
                 .or(Expr::cust(format!(
-                    "(select count(uri) from administrator where uri = {viewer}) > 0"
+                    "(select count(did) from administrator where did = '{viewer}') > 0"
                 )))
         } else {
             Expr::col((Post::Table, Post::IsDisabled)).eq(false)
