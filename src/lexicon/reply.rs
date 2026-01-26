@@ -1,5 +1,8 @@
 use chrono::{DateTime, Local};
-use color_eyre::{Result, eyre::{OptionExt, eyre}};
+use color_eyre::{
+    Result,
+    eyre::{OptionExt, eyre},
+};
 use sea_query::{ColumnDef, Expr, ExprTrait, Iden, OnConflict, PostgresQueryBuilder};
 use sea_query_sqlx::SqlxBinder;
 use serde::Serialize;
@@ -9,7 +12,8 @@ use sqlx::{Executor, Pool, Postgres, query, query_with};
 use crate::lexicon::{
     notify::{Notify, NotifyRow, NotifyType},
     post::Post,
-    resolve_uri, whitelist::Whitelist,
+    resolve_uri,
+    whitelist::Whitelist,
 };
 
 #[derive(Iden)]
