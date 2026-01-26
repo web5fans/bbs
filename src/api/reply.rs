@@ -177,7 +177,7 @@ async fn page_reply(state: &AppView, query: ReplyPageQuery) -> Result<Value, App
     let total: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+        .unwrap_or((0,));
 
     Ok(json!({
         "replies": views,

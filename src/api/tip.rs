@@ -78,10 +78,7 @@ pub(crate) async fn prepare(
             let row: (String, String, i32) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             if row.2 == 0 {
                 (row.1.clone(), row.1, true)
             } else {
@@ -103,10 +100,7 @@ pub(crate) async fn prepare(
             let row: (String, String) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             (row.0, row.1, false)
         }
         NSID_REPLY => {
@@ -124,10 +118,7 @@ pub(crate) async fn prepare(
             let row: (String, String) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             (row.0, row.1, false)
         }
         _ => {
@@ -498,10 +489,7 @@ async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
             let row: (String,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             json!({
                 "nsid": nsid,
                 "uri": uri,
@@ -520,10 +508,7 @@ async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
             let row: (String, String) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             json!({
                 "nsid": nsid,
                 "uri": uri,
@@ -545,10 +530,7 @@ async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
             let row: (String, String, String, String) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             json!({
                 "nsid": nsid,
                 "uri": uri,
@@ -567,10 +549,7 @@ async fn get_source(state: &AppView, info: &str) -> Result<Value, AppError> {
             let row: (String,) = query_as_with(&sql, values.clone())
                 .fetch_one(&state.db)
                 .await
-                .map_err(|e| {
-                    debug!("exec sql failed: {e}");
-                    AppError::NotFound
-                })?;
+                .map_err(|_| AppError::NotFound)?;
             json!({
                 "nsid": nsid,
                 "id": uri,

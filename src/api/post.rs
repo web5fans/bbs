@@ -282,7 +282,7 @@ pub(crate) async fn page(
     let total: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+        .unwrap_or_default();
 
     let mut views = views.read().await.clone();
     views.sort_by(|a, b| b.updated.cmp(&a.updated));
@@ -377,10 +377,7 @@ pub(crate) async fn detail(
     let row: PostRow = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
+        .map_err(|_| AppError::NotFound)?;
 
     // update visited
     let (sql, values) = sea_query::Query::update()
@@ -624,7 +621,7 @@ pub(crate) async fn commented_page(
     let total: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+        .unwrap_or_default();
 
     Ok(ok(json!({
         "posts": views,
@@ -689,7 +686,7 @@ pub(crate) async fn list_draft(
     let total: (i64,) = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| eyre!("exec sql failed: {e}"))?;
+        .unwrap_or_default();
 
     Ok(ok(json!({
         "posts": views,
@@ -713,10 +710,7 @@ pub(crate) async fn detail_draft(
     let row: PostDraftRow = query_as_with(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
+        .map_err(|_| AppError::NotFound)?;
 
     let author = build_author(&state, &row.repo).await;
 

@@ -90,10 +90,7 @@ pub(crate) async fn detail(
     let row: SectionRowSample = query_as_with::<_, SectionRowSample, _>(&sql, values.clone())
         .fetch_one(&state.db)
         .await
-        .map_err(|e| {
-            debug!("exec sql failed: {e}");
-            AppError::NotFound
-        })?;
+        .map_err(|_| AppError::NotFound)?;
 
     let owner_author = if let Some(owner) = &row.owner {
         build_author(&state, owner).await
