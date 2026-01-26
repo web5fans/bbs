@@ -41,91 +41,79 @@ impl CommitHandler for AppView {
 
             let repo_str = commit.repo.as_str();
             let uri = format!("at://{}/{}", repo_str, op.path);
-            if let Ok(Some(record)) = repo.get_raw::<Value>(&op.path).await {
-                debug!("Record: {:?}", record);
-                match collection {
-                    NSID_PROFILE => match op.action.as_str() {
-                        "create" | "update" => {
-                            info!("{} profile: {:?}", op.action, &record);
-                            Profile::insert(&self.db, repo_str, record)
-                                .await
-                                .map_err(|e| error!("Profile::insert failed: {e}"))
-                                .ok();
+
+            match op.action.as_str() {
+                "create" | "update" => {
+                    if let Ok(Some(record)) = repo.get_raw::<Value>(&op.path).await {
+                        debug!("Record: {:?}", record);
+                        let cid =
+                            format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
+                        match collection {
+                            NSID_PROFILE => {
+                                info!("{} profile", op.action);
+                                Profile::insert(&self.db, repo_str, record)
+                                    .await
+                                    .map_err(|e| error!("Profile::insert failed: {e}"))
+                                    .ok();
+                            }
+                            NSID_POST => {
+                                info!("{} post", op.action);
+                                Post::insert(&self.db, repo_str, &record, &uri, &cid)
+                                    .await
+                                    .map_err(|e| error!("Post::insert failed: {e}"))
+                                    .ok();
+                            }
+                            NSID_COMMENT => {
+                                info!("{} comment", op.action);
+                                Comment::insert(&self.db, repo_str, &record, &uri, &cid)
+                                    .await
+                                    .map_err(|e| error!("Comment::insert failed: {e}"))
+                                    .ok();
+                            }
+                            NSID_REPLY => {
+                                info!("{} reply", op.action);
+                                Reply::insert(&self.db, repo_str, &record, &uri, &cid)
+                                    .await
+                                    .map_err(|e| error!("Reply::insert failed: {e}"))
+                                    .ok();
+                            }
+                            NSID_LIKE => {
+                                info!("{} like", op.action);
+                                Like::insert(&self.db, repo_str, &record, &uri, &cid)
+                                    .await
+                                    .map_err(|e| error!("Like::insert failed: {e}"))
+                                    .ok();
+                            }
+                            _ => continue,
                         }
-                        "delete" => {
-                            profile_to_delete.push(uri.clone());
-                            info!("Marked profile for deletion: {}", uri);
-                        }
-                        _ => continue,
-                    },
-                    NSID_POST => match op.action.as_str() {
-                        "create" | "update" => {
-                            let cid =
-                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
-                            info!("{} post: {:?}", op.action, &record);
-                            Post::insert(&self.db, repo_str, &record, &uri, &cid)
-                                .await
-                                .map_err(|e| error!("Post::insert failed: {e}"))
-                                .ok();
-                        }
-                        "delete" => {
-                            post_to_delete.push(uri.clone());
-                            info!("Marked post for deletion: {}", uri);
-                        }
-                        _ => continue,
-                    },
-                    NSID_COMMENT => match op.action.as_str() {
-                        "create" | "update" => {
-                            let cid =
-                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
-                            info!("{} comment: {:?}", op.action, &record);
-                            Comment::insert(&self.db, repo_str, &record, &uri, &cid)
-                                .await
-                                .map_err(|e| error!("Comment::insert failed: {e}"))
-                                .ok();
-                        }
-                        "delete" => {
-                            comment_to_delete.push(uri.clone());
-                            info!("Marked comment for deletion: {}", uri);
-                        }
-                        _ => continue,
-                    },
-                    NSID_REPLY => match op.action.as_str() {
-                        "create" | "update" => {
-                            let cid =
-                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
-                            info!("{} reply: {:?}", op.action, &record);
-                            Reply::insert(&self.db, repo_str, &record, &uri, &cid)
-                                .await
-                                .map_err(|e| error!("Reply::insert failed: {e}"))
-                                .ok();
-                        }
-                        "delete" => {
-                            reply_to_delete.push(uri.clone());
-                            info!("Marked reply for deletion: {}", uri);
-                        }
-                        _ => continue,
-                    },
-                    NSID_LIKE => match op.action.as_str() {
-                        "create" | "update" => {
-                            let cid =
-                                format!("{}", op.cid.clone().map(|cid| cid.0).unwrap_or_default());
-                            info!("{} like: {:?}", op.action, &record);
-                            Like::insert(&self.db, repo_str, &record, &uri, &cid)
-                                .await
-                                .map_err(|e| error!("Like::insert failed: {e}"))
-                                .ok();
-                        }
-                        "delete" => {
-                            like_to_delete.push(uri.clone());
-                            info!("Marked like for deletion: {}", uri);
-                        }
-                        _ => continue,
-                    },
-                    _ => continue,
+                    } else {
+                        error!("FAILED: could not find item with operation {}", op.path);
+                    }
                 }
-            } else {
-                error!("FAILED: could not find item with operation {}", op.path);
+                "delete" => match collection {
+                    NSID_PROFILE => {
+                        profile_to_delete.push(uri.clone());
+                        info!("Marked profile for deletion: {}", uri);
+                    }
+                    NSID_POST => {
+                        post_to_delete.push(uri.clone());
+                        info!("Marked post for deletion: {}", uri);
+                    }
+                    NSID_COMMENT => {
+                        comment_to_delete.push(uri.clone());
+                        info!("Marked comment for deletion: {}", uri);
+                    }
+                    NSID_REPLY => {
+                        reply_to_delete.push(uri.clone());
+                        info!("Marked reply for deletion: {}", uri);
+                    }
+                    NSID_LIKE => {
+                        like_to_delete.push(uri.clone());
+                        info!("Marked like for deletion: {}", uri);
+                    }
+                    _ => continue,
+                },
+                _ => continue,
             }
         }
 
