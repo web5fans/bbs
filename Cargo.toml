@@ -50,8 +50,8 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.28", features = ["native-tls"] }
 tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }
-trait-variant = "0.1"
 tracing = "0.1"
+trait-variant = "0.1"
 utoipa = { version = "5.4", features = ["axum_extras"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 validator = { version = "0.20", features = ["derive"] }

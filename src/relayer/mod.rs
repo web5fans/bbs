@@ -121,7 +121,7 @@ impl CommitHandler for AppView {
             self.db
                 .execute(query(&format!(
                     "DELETE FROM profile WHERE uri IN ({})",
-                    post_to_delete
+                    profile_to_delete
                         .iter()
                         .map(|uri| format!("'{uri}'"))
                         .collect::<Vec<_>>()
