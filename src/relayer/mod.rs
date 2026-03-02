@@ -58,24 +58,45 @@ impl CommitHandler for AppView {
                             }
                             NSID_POST => {
                                 info!("{} post", op.action);
-                                Post::insert(&self.db, repo_str, &record, &uri, &cid)
-                                    .await
-                                    .map_err(|e| error!("Post::insert failed: {e}"))
-                                    .ok();
+                                Post::insert(
+                                    &self.db,
+                                    self.whitelist,
+                                    repo_str,
+                                    &record,
+                                    &uri,
+                                    &cid,
+                                )
+                                .await
+                                .map_err(|e| error!("Post::insert failed: {e}"))
+                                .ok();
                             }
                             NSID_COMMENT => {
                                 info!("{} comment", op.action);
-                                Comment::insert(&self.db, repo_str, &record, &uri, &cid)
-                                    .await
-                                    .map_err(|e| error!("Comment::insert failed: {e}"))
-                                    .ok();
+                                Comment::insert(
+                                    &self.db,
+                                    self.whitelist,
+                                    repo_str,
+                                    &record,
+                                    &uri,
+                                    &cid,
+                                )
+                                .await
+                                .map_err(|e| error!("Comment::insert failed: {e}"))
+                                .ok();
                             }
                             NSID_REPLY => {
                                 info!("{} reply", op.action);
-                                Reply::insert(&self.db, repo_str, &record, &uri, &cid)
-                                    .await
-                                    .map_err(|e| error!("Reply::insert failed: {e}"))
-                                    .ok();
+                                Reply::insert(
+                                    &self.db,
+                                    self.whitelist,
+                                    repo_str,
+                                    &record,
+                                    &uri,
+                                    &cid,
+                                )
+                                .await
+                                .map_err(|e| error!("Reply::insert failed: {e}"))
+                                .ok();
                             }
                             NSID_LIKE => {
                                 info!("{} like", op.action);

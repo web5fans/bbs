@@ -76,6 +76,7 @@ impl Comment {
 
     pub async fn insert(
         db: &Pool<Postgres>,
+        whitelist: bool,
         repo: &str,
         comment: &Value,
         uri: &str,
@@ -83,7 +84,7 @@ impl Comment {
     ) -> Result<()> {
         // check permission
         {
-            if !Whitelist::select_by_did(db, repo).await {
+            if whitelist && !Whitelist::select_by_did(db, repo).await {
                 return Err(eyre!("Operation is not allowed!"));
             }
         }

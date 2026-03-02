@@ -14,6 +14,7 @@ pub struct AppConfig {
     pub indexer: String,
     pub ckb_url: String,
     pub ckb_net: ckb_sdk::NetworkType,
+    pub whitelist: bool,
 }
 
 impl Default for AppConfig {
@@ -29,6 +30,7 @@ impl Default for AppConfig {
             pay_url: Default::default(),
             indexer: Default::default(),
             ckb_net: ckb_sdk::NetworkType::Testnet,
+            whitelist: true,
         }
     }
 }

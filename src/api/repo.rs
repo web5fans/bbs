@@ -27,7 +27,7 @@ pub(crate) async fn profile(
     Query(query): Query<ProfileQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut author = build_author(&state, &query.repo).await;
-    if Whitelist::select_by_did(&state.db, &query.repo).await {
+    if !state.whitelist || Whitelist::select_by_did(&state.db, &query.repo).await {
         author["highlight"] = Value::String("beta".to_owned());
     }
 

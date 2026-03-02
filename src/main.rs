@@ -48,6 +48,7 @@ struct AppView {
     pay_url: String,
     bbs_ckb_addr: String,
     ckb_net: ckb_sdk::NetworkType,
+    whitelist: bool,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -92,6 +93,7 @@ async fn main() -> Result<()> {
         indexer: config.indexer.clone(),
         pay_url: config.pay_url.clone(),
         ckb_net: config.ckb_net,
+        whitelist: config.whitelist,
     };
 
     // reconnect

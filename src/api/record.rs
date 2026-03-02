@@ -49,7 +49,7 @@ pub(crate) async fn create(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
-    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+    if state.whitelist && !Whitelist::select_by_did(&state.db, &new_record.repo).await {
         match record_type {
             NSID_POST | NSID_REPLY | NSID_COMMENT => {
                 return Err(eyre!("Operation is not allowed!").into());
@@ -108,13 +108,37 @@ pub(crate) async fn create(
         .ok_or(AppError::RpcFailed(result.to_string()))?;
     match record_type {
         NSID_POST => {
-            Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Post::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_COMMENT => {
-            Comment::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Comment::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_REPLY => {
-            Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Reply::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_LIKE => {
             Like::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
@@ -137,7 +161,7 @@ pub(crate) async fn update(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
-    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+    if state.whitelist && !Whitelist::select_by_did(&state.db, &new_record.repo).await {
         match record_type {
             NSID_POST | NSID_REPLY | NSID_COMMENT => {
                 return Err(eyre!("Operation is not allowed!").into());
@@ -196,13 +220,37 @@ pub(crate) async fn update(
         .ok_or(AppError::RpcFailed(result.to_string()))?;
     match record_type {
         NSID_POST => {
-            Post::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Post::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_COMMENT => {
-            Comment::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Comment::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_REPLY => {
-            Reply::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
+            Reply::insert(
+                &state.db,
+                state.whitelist,
+                &new_record.repo,
+                &new_record.value,
+                uri,
+                cid,
+            )
+            .await?;
         }
         NSID_LIKE => {
             Like::insert(&state.db, &new_record.repo, &new_record.value, uri, cid).await?;
@@ -225,7 +273,7 @@ pub(crate) async fn delete(
         .map(|t| t.as_str())
         .ok_or_eyre("'$type' must be set")?
         .ok_or_eyre("'$type' must be set")?;
-    if !Whitelist::select_by_did(&state.db, &new_record.repo).await {
+    if state.whitelist && !Whitelist::select_by_did(&state.db, &new_record.repo).await {
         match record_type {
             NSID_POST | NSID_REPLY | NSID_COMMENT => {
                 return Err(eyre!("Operation is not allowed!").into());

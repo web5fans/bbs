@@ -117,6 +117,7 @@ impl Post {
 
     pub async fn insert(
         db: &Pool<Postgres>,
+        whitelist: bool,
         repo: &str,
         post: &Value,
         uri: &str,
@@ -147,7 +148,7 @@ impl Post {
 
         // check permission
         {
-            if !Whitelist::select_by_did(db, repo).await {
+            if whitelist && !Whitelist::select_by_did(db, repo).await {
                 return Err(eyre!("Operation is not allowed!"));
             }
             let section: SectionRow = Section::select_by_id(db, section_id)
